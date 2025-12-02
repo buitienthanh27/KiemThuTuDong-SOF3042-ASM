@@ -6,6 +6,7 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.time.Duration;
 import java.util.List;
 
 @ExtendWith(ScreenshotOnFailureExtension.class)
@@ -17,7 +18,7 @@ public class CartTest extends BaseSeleniumTest {
 
     @BeforeEach
     void setUp() {
-        wait = new WebDriverWait(driver, TIMEOUT);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
     // --- HÀM CLICK JS (Dùng để trị các nút bị che hoặc khó bấm) ---
@@ -33,7 +34,7 @@ public class CartTest extends BaseSeleniumTest {
 
     // --- LOGIC LOGIN (Dựa trên file loginOrRegister.html) ---
     private void ensureLoggedIn() {
-        driver.get("http://localhost:8080/login");
+        driver.get("http://localhost:9090/login");
         try {
             // Kiểm tra nếu đã login (có nút logout hoặc profile) thì bỏ qua
             // Ở đây check URL cho nhanh
@@ -51,7 +52,7 @@ public class CartTest extends BaseSeleniumTest {
             clickElementJS(loginBtn);
 
             // Chờ về trang chủ
-            wait.until(ExpectedConditions.urlToBe("http://localhost:8080/"));
+            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
         } catch (Exception e) {
             System.out.println("Đã login hoặc có lỗi login: " + e.getMessage());
         }
@@ -62,7 +63,7 @@ public class CartTest extends BaseSeleniumTest {
     @Order(1)
     void test_add_to_cart_success() {
         ensureLoggedIn();
-        driver.get("http://localhost:8080/products");
+        driver.get("http://localhost:9090/products");
 
         try {
             // 1. Tìm nút Add To Cart
@@ -83,7 +84,7 @@ public class CartTest extends BaseSeleniumTest {
             Thread.sleep(1500); // Chờ 1.5s để server kịp xử lý request thêm hàng
 
             // 3. Chủ động chuyển hướng sang trang Cart để kiểm tra
-            driver.get("http://localhost:8080/carts");
+            driver.get("http://localhost:9090/carts");
 
             // 4. Validate (Kiểm tra xem có sản phẩm trong bảng không)
             // Tìm bảng giỏ hàng
@@ -104,7 +105,7 @@ public class CartTest extends BaseSeleniumTest {
     @Order(2)
     void test_update_quantity() {
         if (!driver.getCurrentUrl().contains("cart")) {
-            driver.get("http://localhost:8080/carts"); // URL trang cart của bạn
+            driver.get("http://localhost:9090/carts"); // URL trang cart của bạn
         }
 
         try {
@@ -137,7 +138,7 @@ public class CartTest extends BaseSeleniumTest {
     @Order(3)
     void test_remove_from_cart() {
         if (!driver.getCurrentUrl().contains("cart")) {
-            driver.get("http://localhost:8080/carts");
+            driver.get("http://localhost:9090/carts");
         }
 
         try {

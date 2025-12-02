@@ -1,5 +1,6 @@
 package com.java.selenium;
 
+import io.qameta.allure.Allure;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -7,13 +8,12 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-
+@ExtendWith(TestListener.class)
 @ExtendWith(ScreenshotOnFailureExtension.class)
 public class LoginTest extends BaseSeleniumTest {
 
@@ -25,31 +25,42 @@ public class LoginTest extends BaseSeleniumTest {
     /**
      * HÀM CHỤP ẢNH THỦ CÔNG
      */
-    public void takeScreenshot(String fileName, String pass) {
+    public void takeScreenshot(String fileName, String fail) {
         try {
+            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
+            Thread.sleep(500); // Chờ cuộn xong
+
+            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
+            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
+
+            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/" + fileName + "_" + timestamp + ".png";
+            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
+
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            Path destination = Paths.get(fullFileName);
-            Files.createDirectories(destination.getParent());
-            Files.copy(scrFile.toPath(), destination);
-            System.out.println("📸 Đã chụp ảnh bằng chứng: " + fullFileName);
+            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
+            java.nio.file.Files.createDirectories(destination.getParent());
+            java.nio.file.Files.copy(scrFile.toPath(), destination);
+
+            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
         } catch (Exception e) {
-            System.err.println("Lỗi khi chụp ảnh: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     private void prepareLoginPage() {
         System.out.println("--- BẮT ĐẦU TEST CASE ---");
-        driver.get("http://localhost:8080/login");
+        driver.get("http://localhost:9090/login");
         driver.manage().window().maximize();
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         // 1. Nếu đang kẹt ở trang Admin -> Logout ra
         if (driver.getCurrentUrl().contains("admin")) {
             System.out.println("Phát hiện đang ở Admin, tiến hành Logout...");
-            driver.get("http://localhost:8080/logout");
-            driver.get("http://localhost:8080/login");
+            driver.get("http://localhost:9090/logout");
+            driver.get("http://localhost:9090/login");
         }
 
         // 2. CHUYỂN TAB SIGN IN (QUAN TRỌNG)
@@ -70,7 +81,7 @@ public class LoginTest extends BaseSeleniumTest {
         prepareLoginPage();
 
         // 1. Nhập Email (name='customerId' theo HTML của bạn)
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         WebElement emailInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
         emailInput.clear();
         emailInput.sendKeys("abcd"); // Tài khoản đúng của bạn
@@ -88,8 +99,8 @@ public class LoginTest extends BaseSeleniumTest {
         // 4. Kiểm tra kết quả
         System.out.println("Đã bấm Login, đang chờ chuyển trang...");
         try {
-            // Cách 1: Chờ URL đổi về trang chủ (http://localhost:8080/)
-            wait.until(ExpectedConditions.urlToBe("http://localhost:8080/"));
+            // Cách 1: Chờ URL đổi về trang chủ (http://localhost:9090/)
+            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
             System.out.println("Login thành công: URL đã về trang chủ.");
         } catch (Exception e) {
             // Cách 2: Nếu URL không đổi, thử tìm nút Logout hoặc tên User
@@ -110,7 +121,7 @@ public class LoginTest extends BaseSeleniumTest {
     void login_with_wrong_password_should_show_error() {
         prepareLoginPage();
 
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         // 1. Nhập đúng User
         WebElement emailInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
@@ -129,7 +140,7 @@ public class LoginTest extends BaseSeleniumTest {
         // 4. Kiểm tra lỗi
         try {
             // Chỉ cần URL không phải trang chủ là coi như Đăng nhập thất bại (Pass test case invalid)
-            boolean isNotHome = !driver.getCurrentUrl().equals("http://localhost:8080/");
+            boolean isNotHome = !driver.getCurrentUrl().equals("http://localhost:9090/");
             Assertions.assertTrue(isNotHome, "Lỗi: Đăng nhập sai mà vẫn vào được trang chủ!");
             takeScreenshot("FAIL_login_with_wrong_password_should_show_error", "FAIL");
         } catch (Exception e) {
@@ -140,7 +151,7 @@ public class LoginTest extends BaseSeleniumTest {
     @Test
     void login_fail_user_not_exist() {
         prepareLoginPage();
-        WebDriverWait wait = new WebDriverWait(driver, 15);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
         // Tạo một tài khoản ngẫu nhiên chắc chắn không có trong DB
         String nonExistUser = "ghost_user_" + System.currentTimeMillis() + "@test.com";

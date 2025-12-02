@@ -4,11 +4,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import javax.persistence.CascadeType;
-import javax.persistence.Entity;
-import javax.persistence.Id;
-import javax.persistence.OneToMany;
-import javax.persistence.Table;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -33,16 +31,13 @@ public class Customer implements UserDetails, CredentialsContainer {
 	private String email;
 	private String photo = "";
 	private Boolean enabled;
-	private String roleId;
-
-	@OneToMany(mappedBy = "id")
-	private Collection<Role> roles;
+	private Integer roleId;
 
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
 		List<GrantedAuthority> authorities = new ArrayList<>();
-		if ("1".equals(roleId)) {
+		if (roleId != null && roleId == 1) {
 			authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
 		} else {
 			authorities.add(new SimpleGrantedAuthority("ROLE_USER"));

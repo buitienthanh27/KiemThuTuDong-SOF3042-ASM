@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+//import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 //import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.stereotype.Service;
 
@@ -23,8 +23,9 @@ public class VeganaService implements UserDetailsService{
 	@Autowired
     CustomersRepository customersRepository;
 	
-	@Autowired
-	BCryptPasswordEncoder passwordEncoder;
+	// BCryptPasswordEncoder không cần thiết ở đây, đã được inject ở SpringSecurityConfig
+	// @Autowired
+	// BCryptPasswordEncoder passwordEncoder;
 
     @Override
     public UserDetails loadUserByUsername(String customerId) throws UsernameNotFoundException{

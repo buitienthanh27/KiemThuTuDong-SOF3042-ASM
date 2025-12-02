@@ -1,15 +1,16 @@
 package com.java.selenium;
 
+import io.qameta.allure.Allure;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -23,7 +24,7 @@ public class NavigationTest extends BaseSeleniumTest {
 
     @BeforeEach
     void setUp() {
-        wait = new WebDriverWait(driver, TIMEOUT);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
     // --- HÀM HỖ TRỢ ---
@@ -39,21 +40,31 @@ public class NavigationTest extends BaseSeleniumTest {
 
     public void takeScreenshot(String fileName) {
         try {
+            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
+            Thread.sleep(500); // Chờ cuộn xong
+
+            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
+            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
+
+            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            // Mặc định là FAIL vì giờ ta chỉ chụp khi lỗi
             String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
+
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            Path destination = Paths.get(fullFileName);
-            Files.createDirectories(destination.getParent());
-            Files.copy(scrFile.toPath(), destination);
-            System.err.println("📸 Đã chụp ảnh lỗi: " + fullFileName);
+            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
+            java.nio.file.Files.createDirectories(destination.getParent());
+            java.nio.file.Files.copy(scrFile.toPath(), destination);
+
+            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
         } catch (Exception e) {
-            System.err.println("Lỗi chụp ảnh: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     private void ensureLoggedIn() {
-        driver.get("http://localhost:8080/login");
+        driver.get("http://localhost:9090/login");
         try {
             if (!driver.getCurrentUrl().contains("login")) return;
             WebElement userField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
@@ -62,7 +73,7 @@ public class NavigationTest extends BaseSeleniumTest {
             driver.findElement(By.name("password")).sendKeys("123123");
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
             clickElementJS(loginBtn);
-            wait.until(ExpectedConditions.urlToBe("http://localhost:8080/"));
+            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
         } catch (Exception e) {
             System.out.println("Login info: " + e.getMessage());
         }
@@ -72,12 +83,12 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test
     @Order(1)
     void test_logo_redirects_to_home() {
-        driver.get("http://localhost:8080/contact");
+        driver.get("http://localhost:9090/contact");
         try {
             WebElement logo = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//img[@alt='logo']/parent::a")));
             logo.click();
-            wait.until(ExpectedConditions.urlToBe("http://localhost:8080/"));
-            Assertions.assertEquals("http://localhost:8080/", driver.getCurrentUrl());
+            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
+            Assertions.assertEquals("http://localhost:9090/", driver.getCurrentUrl());
 
             // Đã xóa chụp ảnh PASS
 
@@ -91,7 +102,7 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test
     @Order(2)
     void test_menu_all_products() {
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/");
         try {
             WebElement productLink = wait.until(ExpectedConditions.elementToBeClickable(By.linkText("All Products")));
             productLink.click();
@@ -109,7 +120,7 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test
     @Order(3)
     void test_menu_contact() {
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/");
         try {
             WebElement contactLink = wait.until(ExpectedConditions.elementToBeClickable(By.linkText("Contact")));
             contactLink.click();
@@ -128,7 +139,7 @@ public class NavigationTest extends BaseSeleniumTest {
     @Order(4)
     void test_header_cart_icon() {
         ensureLoggedIn(); // Gọi hàm này để tránh lỗi timeout
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/");
 
         try {
             WebElement cartIcon = wait.until(ExpectedConditions.elementToBeClickable(
@@ -147,8 +158,8 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test
     @Order(5)
     void test_login_navigation() {
-        driver.get("http://localhost:8080/logout"); // Logout trước
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/logout"); // Logout trước
+        driver.get("http://localhost:9090/");
 
         try {
             List<WebElement> loginLinks = driver.findElements(By.partialLinkText("Login"));

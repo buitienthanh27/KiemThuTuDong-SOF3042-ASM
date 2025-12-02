@@ -2,7 +2,7 @@ package com.java.service;
 
 import java.io.IOException;
 
-import javax.mail.MessagingException;
+import jakarta.mail.MessagingException;
 
 import org.springframework.stereotype.Service;
 

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import com.java.entity.Order;
 
-import javax.transaction.Transactional;
+import jakarta.transaction.Transactional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Integer>{

@@ -1,15 +1,15 @@
 package com.java.selenium;
 
+import io.qameta.allure.Allure;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -23,23 +23,31 @@ public class CheckoutTest extends BaseSeleniumTest {
 
     @BeforeEach
     void setUp() {
-        wait = new WebDriverWait(driver, TIMEOUT);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
-    // --- HÀM HỖ TRỢ CHỤP ẢNH (Bạn cung cấp) ---
     public void takeScreenshot(String fileName, String pass) {
         try {
+            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
+            Thread.sleep(500); // Chờ cuộn xong
+
+            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
+            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
+
+            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            // Tôi đã thêm biến 'pass' vào tên file để bạn dễ phân biệt ảnh PASS/FAIL
-            String fullFileName = "screenshots/" + fileName + "_" + pass + "_" + timestamp + ".png";
+            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
 
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            Path destination = Paths.get(fullFileName);
-            Files.createDirectories(destination.getParent());
-            Files.copy(scrFile.toPath(), destination);
-            System.out.println("📸 Đã chụp ảnh bằng chứng: " + fullFileName);
+            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
+            java.nio.file.Files.createDirectories(destination.getParent());
+            java.nio.file.Files.copy(scrFile.toPath(), destination);
+
+            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
         } catch (Exception e) {
-            System.err.println("Lỗi khi chụp ảnh: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -56,7 +64,7 @@ public class CheckoutTest extends BaseSeleniumTest {
 
     // --- 1. LOGIN ---
     private void ensureLoggedIn() {
-        driver.get("http://localhost:8080/login");
+        driver.get("http://localhost:9090/login");
         try {
             if (!driver.getCurrentUrl().contains("login")) return;
 
@@ -69,7 +77,7 @@ public class CheckoutTest extends BaseSeleniumTest {
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
             clickElementJS(loginBtn);
 
-            wait.until(ExpectedConditions.urlToBe("http://localhost:8080/"));
+            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
         } catch (Exception e) {
             System.out.println("Login info: " + e.getMessage());
         }
@@ -77,14 +85,14 @@ public class CheckoutTest extends BaseSeleniumTest {
 
     // --- 2. ĐẢM BẢO GIỎ HÀNG CÓ SẢN PHẨM ---
     private void ensureCartHasProduct() {
-        driver.get("http://localhost:8080/carts");
+        driver.get("http://localhost:9090/carts");
         try {
             // Kiểm tra bảng giỏ hàng
             List<WebElement> rows = driver.findElements(By.cssSelector("table.table-list tbody tr"));
 
             if (rows.isEmpty()) {
                 System.out.println("⚠️ Giỏ hàng rỗng! Đang tự động thêm sản phẩm...");
-                driver.get("http://localhost:8080/products");
+                driver.get("http://localhost:9090/products");
 
                 wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
                 List<WebElement> addButtons = driver.findElements(By.cssSelector(".product-btn a"));
@@ -107,7 +115,7 @@ public class CheckoutTest extends BaseSeleniumTest {
         ensureCartHasProduct(); // Pre-condition: Phải có hàng mới checkout được
 
         // Vào trang checkout
-        driver.get("http://localhost:8080/checkout");
+        driver.get("http://localhost:9090/checkout");
 
         try {
             // 1. Điền Form Shipping (Dựa trên checkOut.html)
@@ -156,7 +164,7 @@ public class CheckoutTest extends BaseSeleniumTest {
         ensureLoggedIn();
         ensureCartHasProduct();
 
-        driver.get("http://localhost:8080/checkout");
+        driver.get("http://localhost:9090/checkout");
 
         try {
             System.out.println("Test 2: Thử thanh toán thiếu Address...");

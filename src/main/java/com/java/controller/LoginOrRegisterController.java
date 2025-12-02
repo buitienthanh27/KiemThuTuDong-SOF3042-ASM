@@ -4,7 +4,7 @@ import java.security.Principal;
 import java.util.List;
 import java.util.Optional;
 
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -70,7 +70,7 @@ public class LoginOrRegisterController extends CommonController {
 		}
 
 		customer.setEnabled(true);
-		customer.setRoleId("0");
+		customer.setRoleId(0); // Integer: 0 = ROLE_USER, 1 = ROLE_ADMIN
 		customer.setPassword(bCryptPasswordEncoder.encode(customer.getPassword()));
 
 		Customer c = customersRepository.save(customer);

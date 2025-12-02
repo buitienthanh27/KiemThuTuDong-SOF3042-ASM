@@ -34,7 +34,8 @@ public class PersistenceJPAConfig {
 	public DataSource dataSource() {
 		DriverManagerDataSource dataSource = new DriverManagerDataSource();
 		dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
-		dataSource.setUrl("jdbc:mysql://localhost:3306/vegana_store");
+		// Set collation to utf8mb4_general_ci to match existing database schema
+		dataSource.setUrl("jdbc:mysql://localhost:3306/vegana_store?useUnicode=true&characterEncoding=utf8&connectionCollation=utf8mb4_general_ci");
 		dataSource.setUsername("root");
 		dataSource.setPassword("123456");
 		return dataSource;
@@ -55,7 +56,15 @@ public class PersistenceJPAConfig {
 
 	Properties additionalProperties() {
 		Properties properties = new Properties();
-		properties.setProperty("hibernate.hbm2ddl.auto", "update");
+		// Allow override via system property or environment variable for CI/CD
+		String ddlAuto = System.getProperty("hibernate.hbm2ddl.auto");
+		if (ddlAuto == null || ddlAuto.isEmpty()) {
+			ddlAuto = System.getenv("HIBERNATE_HBM2DDL_AUTO");
+		}
+		if (ddlAuto == null || ddlAuto.isEmpty()) {
+			ddlAuto = "update"; // default
+		}
+		properties.setProperty("hibernate.hbm2ddl.auto", ddlAuto);
 		properties.setProperty("hibernate.show_sql", "true");
 		properties.setProperty("hibernate.dialect", "org.hibernate.dialect.MySQL8Dialect");
 		return properties;

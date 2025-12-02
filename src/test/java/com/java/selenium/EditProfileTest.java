@@ -1,5 +1,7 @@
 package com.java.selenium;
 
+import io.qameta.allure.Allure;
+import java.io.ByteArrayInputStream; // Dòng này chắc có rồi, kiểm tra lại cho chắc
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,12 +11,12 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -23,26 +25,39 @@ public class EditProfileTest extends BaseSeleniumTest {
 
     private static final int TIMEOUT = 15; // Tăng thời gian chờ lên xíu
 
-    public void takeScreenshot(String fileName, String status) {
+    public void takeScreenshot(String fileName, String pass) {
         try {
+            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
+            Thread.sleep(500); // Chờ cuộn xong
+
+            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
+            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
+
+            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/[" + status + "]_" + fileName + "_" + timestamp + ".png";
+            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
+
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            Path destination = Paths.get(fullFileName);
-            Files.createDirectories(destination.getParent());
-            Files.copy(scrFile.toPath(), destination);
-            System.out.println("📸 Đã chụp ảnh (" + status + "): " + fullFileName);
-        } catch (Exception e) {}
+            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
+            java.nio.file.Files.createDirectories(destination.getParent());
+            java.nio.file.Files.copy(scrFile.toPath(), destination);
+
+            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void goToProfilePage() {
-        driver.get("http://localhost:8080/login");
+        driver.get("http://localhost:9090/login");
         driver.manage().window().maximize();
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         if (driver.getCurrentUrl().contains("admin")) {
-            driver.get("http://localhost:8080/logout");
-            driver.get("http://localhost:8080/login");
+            driver.get("http://localhost:9090/logout");
+            driver.get("http://localhost:9090/login");
         }
 
         // Login nhanh
@@ -63,7 +78,7 @@ public class EditProfileTest extends BaseSeleniumTest {
             System.out.println("Có thể đã đăng nhập sẵn.");
         }
 
-        driver.get("http://localhost:8080/account");
+        driver.get("http://localhost:9090/account");
     }
 
     /**
@@ -71,7 +86,7 @@ public class EditProfileTest extends BaseSeleniumTest {
      * Phải gọi hàm này trước khi nhập liệu!
      */
     private void openEditModal() {
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         try {
             // Tìm nút "edit profile" (dựa trên HTML bạn gửi)
             // Nút này có data-target="#profile-edit"
@@ -97,7 +112,7 @@ public class EditProfileTest extends BaseSeleniumTest {
         openEditModal();
         // -----------------------
 
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         String newName = "User Update " + System.currentTimeMillis();
         String newPhone = "09" + (System.currentTimeMillis() / 1000);
         String newAddress = "Dia chi moi " + System.currentTimeMillis();
@@ -138,7 +153,7 @@ public class EditProfileTest extends BaseSeleniumTest {
         goToProfilePage();
         openEditModal(); // Mở modal trước
 
-        WebDriverWait wait = new WebDriverWait(driver, TIMEOUT);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         try {
             File tempImage = File.createTempFile("test-avatar", ".jpg");
             tempImage.deleteOnExit();
@@ -164,7 +179,7 @@ public class EditProfileTest extends BaseSeleniumTest {
         goToProfilePage();
         openEditModal(); // Mở modal để thấy ô email
 
-        WebDriverWait wait = new WebDriverWait(driver, 10);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         WebElement emailInput = wait.until(ExpectedConditions.visibilityOfElementLocated(
                 By.xpath("//div[@id='profile-edit']//input[@name='email']")));
 

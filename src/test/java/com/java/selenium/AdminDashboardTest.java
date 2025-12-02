@@ -1,12 +1,14 @@
 package com.java.selenium;
+import java.time.Duration;
 
+import io.qameta.allure.Allure;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
-
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -21,11 +23,11 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
     private static final String ADMIN_USER = "admin";
     private static final String ADMIN_PASS = "123123";
-    private static final String IMAGE_PATH = "D:\\FPTPolytechnic\\SOF3042\\Vegana-Automation-Testing\\Vegana-shop\\src\\main\\resources\\static\\images\\product\\02.jpg";
+    private static final String IMAGE_PATH = System.getProperty("user.dir") + "/src/main/resources/static/images/product/02.jpg";
 
     @BeforeEach
     void setUp() {
-        wait = new WebDriverWait(driver, TIMEOUT);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
     public void clickElementJS(WebElement element) {
@@ -38,27 +40,37 @@ public class AdminDashboardTest extends BaseSeleniumTest {
         }
     }
 
-    // Chỉ chụp ảnh khi có lỗi
     public void takeScreenshot(String fileName) {
         try {
+            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
             ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
-            Thread.sleep(500);
+            Thread.sleep(500); // Chờ cuộn xong
+
+            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
+            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
+
+            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
             String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
+
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
             java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
             java.nio.file.Files.createDirectories(destination.getParent());
             java.nio.file.Files.copy(scrFile.toPath(), destination);
-            System.err.println("📸 Đã chụp ảnh lỗi: " + fullFileName);
-        } catch (Exception e) {}
+
+            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void loginAsAdmin() {
-        driver.get("http://localhost:8080/login");
+        driver.get("http://localhost:9090/login");
         try {
             if (!driver.getCurrentUrl().contains("login")) {
-                driver.get("http://localhost:8080/logout");
-                driver.get("http://localhost:8080/login");
+                driver.get("http://localhost:9090/logout");
+                driver.get("http://localhost:9090/login");
             }
             WebElement userField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
             userField.clear();
@@ -69,7 +81,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
             clickElementJS(loginBtn);
 
             wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlToBe("http://localhost:8080/"),
+                    ExpectedConditions.urlToBe("http://localhost:9090/"),
                     ExpectedConditions.urlContains("admin")
             ));
         } catch (Exception e) {
@@ -81,7 +93,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Order(1)
     void test_access_admin_dashboard() {
         loginAsAdmin();
-        driver.get("http://localhost:8080/admin/home");
+        driver.get("http://localhost:9090/admin/home");
         try {
             WebElement dashboardTitle = wait.until(ExpectedConditions.visibilityOfElementLocated(
                     By.xpath("//h2[contains(text(), 'Dashboard')]")
@@ -97,7 +109,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(2)
     void test_product_crud() {
-        driver.get("http://localhost:8080/admin/products");
+        driver.get("http://localhost:9090/admin/products");
 
         try {
             // 1. CREATE
@@ -161,7 +173,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
             Thread.sleep(1000);
             // Nếu chưa về trang list, tự động về
             if (!driver.getCurrentUrl().contains("products")) {
-                driver.get("http://localhost:8080/admin/products");
+                driver.get("http://localhost:9090/admin/products");
             }
 
             searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
@@ -202,7 +214,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(3)
     void test_order_crud() {
-        driver.get("http://localhost:8080/admin/orders");
+        driver.get("http://localhost:9090/admin/orders");
         try {
             System.out.println("Test 3: Quản lý đơn hàng...");
             List<WebElement> rows = driver.findElements(By.cssSelector("table#add-row tbody tr"));
@@ -217,7 +229,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
             Thread.sleep(1000);
             if (!driver.getCurrentUrl().contains("orders")) {
-                driver.get("http://localhost:8080/admin/orders");
+                driver.get("http://localhost:9090/admin/orders");
             }
 
             // Check Delete
@@ -240,7 +252,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(4)
     void test_manage_categories() {
-        driver.get("http://localhost:8080/admin/categories");
+        driver.get("http://localhost:9090/admin/categories");
         try {
             // 1. Add
             System.out.println("Test 4.1: Thêm Category...");
@@ -274,7 +286,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
             Thread.sleep(1000);
             if (!driver.getCurrentUrl().contains("categories")) {
-                driver.get("http://localhost:8080/admin/categories");
+                driver.get("http://localhost:9090/admin/categories");
             }
 
             // 3. Delete (Sửa logic tìm nút xóa)
@@ -306,7 +318,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(5)
     void test_manage_suppliers() {
-        driver.get("http://localhost:8080/admin/suppliers");
+        driver.get("http://localhost:9090/admin/suppliers");
         try {
             // 1. Add
             System.out.println("Test 5.1: Thêm Supplier...");
@@ -341,7 +353,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
             Thread.sleep(1000);
             if (!driver.getCurrentUrl().contains("suppliers")) {
-                driver.get("http://localhost:8080/admin/suppliers");
+                driver.get("http://localhost:9090/admin/suppliers");
             }
 
             // 3. Delete
@@ -366,7 +378,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(6)
     void test_view_customers() {
-        driver.get("http://localhost:8080/admin/customers");
+        driver.get("http://localhost:9090/admin/customers");
         try {
             System.out.println("Test 6: Xem danh sách khách hàng...");
             WebElement table = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("add-row")));
@@ -383,7 +395,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(7)
     void test_add_product_fail_empty_name() {
-        driver.get("http://localhost:8080/admin/products");
+        driver.get("http://localhost:9090/admin/products");
 
         try {
             System.out.println("Test 7: Thử thêm sản phẩm nhưng bỏ trống Tên...");
@@ -495,7 +507,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
     @Test
     @Order(9)
     void test_add_supplier_fail_invalid_email() {
-        driver.get("http://localhost:8080/admin/suppliers");
+        driver.get("http://localhost:9090/admin/suppliers");
 
         try {
             System.out.println("Test 9: Thêm NCC với email sai định dạng...");

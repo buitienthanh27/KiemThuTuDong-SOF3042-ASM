@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="" xmlns:th="http://www.thymeleaf.org">
+<html lang="" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
 <meta charset="UTF-8">
 <title>Insert title here</title>
@@ -20,7 +20,7 @@
 							</button>
 						</form>
 						<ul class="right-widget">
-							<th:block th:if="${#request.remoteUser}">
+							<th:block sec:authorize="isAuthenticated()">
 							<li class="navbar-item navbar-dropdown">
 								<a class="icon icon-inline" href="#">
 									<i class="fas fa-user"></i>
@@ -86,7 +86,7 @@
 			                      </li>
 			                    </ul>
 			                  </li>
-			                  	<th:block th:unless="${#request.remoteUser}">
+			                  	<th:block sec:authorize="!isAuthenticated()">
 			                  	<li class="navbar-item">
 									<a class="navbar-link" th:href="@{/login}">Login & Register</a>
 								</li>

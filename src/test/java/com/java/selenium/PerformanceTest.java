@@ -11,8 +11,11 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import io.github.bonigarcia.wdm.WebDriverManager;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import static org.openqa.selenium.remote.ErrorCodes.TIMEOUT;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class PerformanceTest {
@@ -29,7 +32,7 @@ public class PerformanceTest {
         driver = new ChromeDriver(options);
         driver.manage().window().maximize();
         driver.manage().timeouts().pageLoadTimeout(30, TimeUnit.SECONDS);
-        wait = new WebDriverWait(driver, 15);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
     @AfterEach

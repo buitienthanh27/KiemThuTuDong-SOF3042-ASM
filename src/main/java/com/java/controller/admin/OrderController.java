@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 
 import com.java.service.OrderDetailService;
 import org.springframework.beans.factory.annotation.Autowired;

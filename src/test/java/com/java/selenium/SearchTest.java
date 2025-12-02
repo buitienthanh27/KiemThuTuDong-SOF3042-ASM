@@ -1,5 +1,6 @@
 package com.java.selenium;
 
+import io.qameta.allure.Allure;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.*;
@@ -7,10 +8,10 @@ import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -24,7 +25,7 @@ public class SearchTest extends BaseSeleniumTest {
 
     @BeforeEach
     void setUp() {
-        wait = new WebDriverWait(driver, TIMEOUT);
+        wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
     // --- HÀM CLICK JS ---
@@ -38,23 +39,28 @@ public class SearchTest extends BaseSeleniumTest {
         }
     }
 
-    // --- SỬA LẠI HÀM CHỤP ẢNH: LUÔN CUỘN LÊN ĐẦU TRANG TRƯỚC KHI CHỤP ---
     public void takeScreenshot(String fileName) {
         try {
-            // 1. Cuộn lên đầu trang (0, 0) để thấy Header và Kết quả tìm kiếm
+            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
             ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
             Thread.sleep(500); // Chờ cuộn xong
 
-            // 2. Tiến hành chụp
+            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
+            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
+            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
+
+            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/" + fileName + "_" + timestamp + ".png";
+            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
+
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            Path destination = Paths.get(fullFileName);
-            Files.createDirectories(destination.getParent());
-            Files.copy(scrFile.toPath(), destination);
-            System.out.println("📸 Đã chụp ảnh: " + fullFileName);
+            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
+            java.nio.file.Files.createDirectories(destination.getParent());
+            java.nio.file.Files.copy(scrFile.toPath(), destination);
+
+            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
         } catch (Exception e) {
-            System.err.println("Lỗi chụp ảnh: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -62,7 +68,7 @@ public class SearchTest extends BaseSeleniumTest {
     @Test
     @Order(1)
     void test_search_by_keyword_success() {
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/");
 
         try {
             System.out.println("Test 1: Tìm kiếm 'Snack'...");
@@ -101,7 +107,7 @@ public class SearchTest extends BaseSeleniumTest {
     @Test
     @Order(2)
     void test_search_no_result() {
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/");
 
         try {
             System.out.println("Test 2: Tìm kiếm sai...");
@@ -139,7 +145,7 @@ public class SearchTest extends BaseSeleniumTest {
     @Test
     @Order(3)
     void test_filter_by_category() {
-        driver.get("http://localhost:8080/");
+        driver.get("http://localhost:9090/");
 
         try {
             // Tìm Menu Categories (dùng dấu chấm để tìm text chứa trong thẻ con)

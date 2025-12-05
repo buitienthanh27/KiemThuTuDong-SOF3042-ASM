@@ -91,6 +91,7 @@ jobs:
           mkdir -p test-output/reports test-output/screenshots test-output/logs
           mvn -q test -DsuiteXmlFile=src/test/resources/testng.xml
         continue-on-error: true
+
       # --------------------------------------------------
       - name: Upload Test Reports
         if: always()
@@ -100,13 +101,7 @@ jobs:
           path: test-output/
           retention-days: 14
 
-      # --------------------------------------------------
-      - name: Upload Surefire Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surefire-reports
-          path: target/surefire-reports/
+      # --- ĐÃ XÓA BƯỚC UPLOAD SUREFIRE REPORTS TẠI ĐÂY ---
 
       # --------------------------------------------------
       - name: Upload App Logs
@@ -120,6 +115,3 @@ jobs:
       - name: Cleanup
         if: always()
         run: pkill -f "spring-boot:run" || true
-
-        #-----------------------------
-

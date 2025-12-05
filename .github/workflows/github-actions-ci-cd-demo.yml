@@ -89,7 +89,7 @@ jobs:
       - name: Run Automation Tests (Selenium + TestNG)
         run: |
           mkdir -p test-output/reports test-output/screenshots test-output/logs
-          mvn -q test -DsuiteXmlFile=src/test/resources/testng.xml
+          mvn test -DsuiteXmlFile=src/test/resources/testng.xml
       
 
       # --------------------------------------------------

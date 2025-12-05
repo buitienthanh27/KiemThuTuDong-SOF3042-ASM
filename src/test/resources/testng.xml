@@ -5,6 +5,20 @@
     <listeners>
         <listener class-name="com.java.automation.selenium.TestListener"/>
     </listeners>
+    <test name="End-to-End Tests">
+        <classes>
+            <!-- Các bài test trong package 'selenium' -->
+            <class name="com.java.automation.selenium.LoginTest"/>
+            <class name="com.java.automation.selenium.RegisterTest"/>
+            <class name="com.java.automation.selenium.SearchTest"/>
+            <class name="com.java.automation.selenium.CartTest"/>
+            <class name="com.java.automation.selenium.CheckoutTest"/>
+            <class name="com.java.automation.selenium.EditProfileTest"/>
+            <class name="com.java.automation.selenium.NavigationTest"/>
+            <class name="com.java.automation.selenium.PerformanceTest"/>
+            <class name="com.java.automation.selenium.AdminDashboardTest"/>
+        </classes>
+    </test>
 
     <test name="Login Tests">
         <classes>

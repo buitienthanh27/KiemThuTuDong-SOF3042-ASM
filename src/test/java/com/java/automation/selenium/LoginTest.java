@@ -1,20 +1,17 @@
 package com.java.automation.selenium;
 
-import io.qameta.allure.Allure;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.openqa.selenium.*;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.Assert;
+import org.testng.annotations.Listeners;
+import org.testng.annotations.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-@ExtendWith(TestListener.class)
-@ExtendWith(ScreenshotOnFailureExtension.class)
+
+@Listeners(TestListener.class)
 public class LoginTest extends BaseSeleniumTest {
 
     private static final int TIMEOUT = 10;
@@ -22,72 +19,43 @@ public class LoginTest extends BaseSeleniumTest {
     /**
      * Hàm chuẩn bị: Vào trang Login, đảm bảo đang ở Tab Sign In
      */
-    /**
-     * HÀM CHỤP ẢNH THỦ CÔNG
-     */
-    public void takeScreenshot(String fileName, String fail) {
-        try {
-            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
-            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
-            Thread.sleep(500); // Chờ cuộn xong
-
-            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
-            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
-            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
-
-            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
-
-            File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
-            java.nio.file.Files.createDirectories(destination.getParent());
-            java.nio.file.Files.copy(scrFile.toPath(), destination);
-
-            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     private void prepareLoginPage() {
-        System.out.println("--- BẮT ĐẦU TEST CASE ---");
-        driver.get("http://localhost:9090/login");
-        driver.manage().window().maximize();
+        System.out.println("--- BẮT ĐẦU TEST CASE: LOGIN ---");
+        // Dùng BASE_URL từ lớp cha cho đồng bộ (9090)
+        driver.get(BASE_URL + "login");
+
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         // 1. Nếu đang kẹt ở trang Admin -> Logout ra
         if (driver.getCurrentUrl().contains("admin")) {
             System.out.println("Phát hiện đang ở Admin, tiến hành Logout...");
-            driver.get("http://localhost:9090/logout");
-            driver.get("http://localhost:9090/login");
+            driver.get(BASE_URL + "logout");
+            driver.get(BASE_URL + "login");
         }
 
-        // 2. CHUYỂN TAB SIGN IN (QUAN TRỌNG)
-        // Tìm thẻ <a> chứa text 'sign in' trong phần danh sách tab (ul.nav-tabs)
+        // 2. CHUYỂN TAB SIGN IN
         try {
             WebElement signInTab = driver.findElement(By.xpath("//ul[contains(@class, 'nav-tabs')]//a[contains(text(), 'sign in')]"));
-            // Dùng JS click cho chắc ăn (bất chấp bị che)
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", signInTab);
-            Thread.sleep(500); // Chờ hiệu ứng chuyển tab
+            Thread.sleep(500);
             System.out.println("Đã chuyển sang Tab Sign In");
         } catch (Exception e) {
-            System.out.println("Không tìm thấy Tab Sign In, có thể giao diện không có Tab.");
+            System.out.println("Lưu ý: Không tìm thấy Tab Sign In (có thể đã ở sẵn đó).");
         }
     }
 
-    @Test
+    @Test(priority = 1)
     void login_with_valid_customer_should_success() {
         prepareLoginPage();
 
-        // 1. Nhập Email (name='customerId' theo HTML của bạn)
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
+
+        // 1. Nhập Email
         WebElement emailInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
         emailInput.clear();
-        emailInput.sendKeys("abcd"); // Tài khoản đúng của bạn
+        emailInput.sendKeys("abcd"); // Tài khoản đúng
 
         // 2. Nhập Password
-        // XPath chỉ tìm ô password nằm trong div có id='signin' để tránh nhầm với Register
         WebElement passInput = driver.findElement(By.xpath("//div[@id='signin']//input[@name='password']"));
         passInput.clear();
         passInput.sendKeys("123123");
@@ -99,29 +67,28 @@ public class LoginTest extends BaseSeleniumTest {
         // 4. Kiểm tra kết quả
         System.out.println("Đã bấm Login, đang chờ chuyển trang...");
         try {
-            // Cách 1: Chờ URL đổi về trang chủ (http://localhost:9090/)
-            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
-            System.out.println("Login thành công: URL đã về trang chủ.");
+            // Chờ URL đổi về trang chủ
+            wait.until(ExpectedConditions.urlToBe(BASE_URL));
+            System.out.println("✅ Login thành công: URL đã về trang chủ.");
         } catch (Exception e) {
-            // Cách 2: Nếu URL không đổi, thử tìm nút Logout hoặc tên User
+            // Nếu URL không đổi, check nút Logout
             try {
-                WebElement logoutBtn = driver.findElement(By.partialLinkText("Logout")); // Hoặc "Sign out"
+                WebElement logoutBtn = driver.findElement(By.partialLinkText("Logout"));
                 if(logoutBtn.isDisplayed()){
-                    System.out.println("Login thành công: Tìm thấy nút Logout.");
-                    return; // Pass
+                    System.out.println("✅ Login thành công (Check nút Logout).");
+                    return;
                 }
             } catch (Exception ex) {
-                // Nếu cả 2 đều không thấy -> Fail
-                Assertions.fail("Login thất bại: Vẫn ở trang Login hoặc không về trang chủ. URL hiện tại: " + driver.getCurrentUrl());
+                takeScreenshot("Login_Valid_FAIL");
+                Assert.fail("Login thất bại: Vẫn ở trang Login. URL: " + driver.getCurrentUrl());
             }
         }
     }
 
-    @Test
+    @Test(priority = 2)
     void login_with_wrong_password_should_show_error() {
         prepareLoginPage();
-
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
 
         // 1. Nhập đúng User
         WebElement emailInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
@@ -131,7 +98,7 @@ public class LoginTest extends BaseSeleniumTest {
         // 2. Nhập SAI Password
         WebElement passInput = driver.findElement(By.xpath("//div[@id='signin']//input[@name='password']"));
         passInput.clear();
-        passInput.sendKeys("123456");
+        passInput.sendKeys("sai_password_nay");
 
         // 3. Click Login
         WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
@@ -139,47 +106,62 @@ public class LoginTest extends BaseSeleniumTest {
 
         // 4. Kiểm tra lỗi
         try {
-            // Chỉ cần URL không phải trang chủ là coi như Đăng nhập thất bại (Pass test case invalid)
-            boolean isNotHome = !driver.getCurrentUrl().equals("http://localhost:9090/");
-            Assertions.assertTrue(isNotHome, "Lỗi: Đăng nhập sai mà vẫn vào được trang chủ!");
-            takeScreenshot("FAIL_login_with_wrong_password_should_show_error", "FAIL");
+            // Logic: Nếu URL vẫn là trang login (chứa 'login' hoặc 'error') => Đúng
+            boolean stillAtLogin = driver.getCurrentUrl().contains("login") || driver.getCurrentUrl().contains("error");
+
+            // Hoặc tìm thông báo lỗi màu đỏ
+            boolean errorVisible = false;
+            try {
+                if(driver.findElement(By.cssSelector(".alert-danger")).isDisplayed()) errorVisible = true;
+            } catch (Exception ignored) {}
+
+            if (stillAtLogin || errorVisible) {
+                System.out.println("✅ Pass: Hệ thống chặn login sai password.");
+                takeScreenshot("Login_WrongPass_Blocked"); // Chụp ảnh bằng chứng
+            } else {
+                takeScreenshot("Login_WrongPass_FAIL");
+                Assert.fail("Lỗi: Đăng nhập sai mà vẫn vào được trang chủ!");
+            }
         } catch (Exception e) {
-            Assertions.fail("Test thất bại: Không hiện thông báo lỗi màu đỏ (.alert-danger). URL: " + driver.getCurrentUrl());
+            Assert.fail("Lỗi Test sai pass: " + e.getMessage());
         }
     }
 
-    @Test
+    @Test(priority = 3)
     void login_fail_user_not_exist() {
         prepareLoginPage();
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
 
-        // Tạo một tài khoản ngẫu nhiên chắc chắn không có trong DB
-        String nonExistUser = "ghost_user_" + System.currentTimeMillis() + "@test.com";
+        // Tài khoản ma
+        String nonExistUser = "ghost_" + System.currentTimeMillis();
 
-        // Nhập liệu
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId"))).sendKeys(nonExistUser);
         driver.findElement(By.xpath("//div[@id='signin']//input[@name='password']")).sendKeys("123456");
 
-        // Click Login
         WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", loginBtn);
 
-        // Kiểm tra lỗi
         try {
-            // Chờ URL có chứa chữ "error" HOẶC hiện thông báo đỏ
             boolean urlHasError = wait.until(ExpectedConditions.urlContains("error"));
 
-            // Kiểm tra thêm thông báo lỗi (nếu có)
+            // Check alert
             boolean textVisible = false;
             try {
                 if (driver.findElement(By.cssSelector(".alert-danger")).isDisplayed()) textVisible = true;
             } catch (Exception ignored) {}
 
-            Assertions.assertTrue(urlHasError || textVisible, "Lỗi: Nhập tài khoản ma mà không báo lỗi!");
-            takeScreenshot("FAIL_login_fail_user_not_exist", "FAIL");
+            if(urlHasError || textVisible) {
+                System.out.println("✅ Pass: Hệ thống chặn tài khoản không tồn tại.");
+                takeScreenshot("Login_NotExist_Blocked");
+            } else {
+                takeScreenshot("Login_NotExist_FAIL");
+                Assert.fail("Lỗi: Nhập tài khoản ma mà không báo lỗi!");
+            }
 
         } catch (Exception e) {
-            Assertions.fail("Test thất bại: Hệ thống không phản ứng gì khi nhập sai tài khoản.");
+            // Nếu wait timeout nghĩa là không thấy url error -> Fail
+            takeScreenshot("Login_NotExist_Timeout");
+            Assert.fail("Test thất bại: Hệ thống không phản ứng gì.");
         }
     }
 }

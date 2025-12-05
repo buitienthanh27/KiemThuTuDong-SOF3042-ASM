@@ -2,14 +2,14 @@ package com.java.automation.selenium;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
 import io.qameta.allure.Allure;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.testng.annotations.AfterSuite;
+import org.testng.annotations.BeforeSuite;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -19,74 +19,69 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public abstract class BaseSeleniumTest {
+public class BaseSeleniumTest {
 
-    protected static WebDriver driver;
+    // Để static để dùng chung cho toàn bộ Suite test
+    public static WebDriver driver;
+    // Port 9090 theo yêu cầu của bạn
     protected static final String BASE_URL = "http://localhost:9090/";
 
-    @BeforeAll
-    static void setUpClass() {
+    @BeforeSuite(alwaysRun = true)
+    public void setUpSuite() {
         WebDriverManager.chromedriver().setup();
         ChromeOptions options = new ChromeOptions();
 
-        // --- LOGIC THÔNG MINH: TỰ NHẬN DIỆN MÔI TRƯỜNG ---
+        // --- LOGIC NHẬN DIỆN CI/CD (GITHUB ACTIONS) ---
         String isCI = System.getenv("GITHUB_ACTIONS");
 
         if (isCI != null && "true".equalsIgnoreCase(isCI)) {
-            // === CẤU HÌNH CHO GITHUB ACTIONS (SERVER LINUX) ===
-            System.out.println("🤖 Đang chạy trên CI/CD (Headless Mode)...");
-            options.addArguments("--headless"); // Chạy ngầm
+            System.out.println("🤖 Detect CI Environment: Running Headless Chrome");
+            options.addArguments("--headless");
             options.addArguments("--disable-gpu");
-            options.addArguments("--window-size=1920,1080"); // Set cứng kích thước ảo
+            options.addArguments("--window-size=1920,1080");
             options.addArguments("--no-sandbox");
             options.addArguments("--disable-dev-shm-usage");
+            options.addArguments("--remote-allow-origins=*");
         } else {
-            // === CẤU HÌNH CHO MÁY CÁ NHÂN (LOCAL) ===
-            System.out.println("💻 Đang chạy trên máy Local (GUI Mode)...");
-            options.addArguments("--start-maximized"); // Hiện trình duyệt to rõ
+            System.out.println("💻 Detect Local Environment: Running GUI Chrome");
+            options.addArguments("--start-maximized");
         }
 
-        // Khởi tạo Driver
         driver = new ChromeDriver(options);
 
-        // Đảm bảo maximize (cho chắc chắn với mọi môi trường)
         if (isCI == null) {
             driver.manage().window().maximize();
         }
     }
 
-    @AfterAll
-    static void tearDownClass() {
+    @AfterSuite(alwaysRun = true)
+    public void tearDownSuite() {
         if (driver != null) {
             driver.quit();
         }
     }
 
-    protected void openHomePage() {
-        driver.get(BASE_URL);
-    }
-
-    // --- HÀM CHỤP ẢNH TÍCH HỢP ALLURE REPORT ---
+    // Hàm hỗ trợ chụp ảnh thủ công (nếu cần dùng trong test case)
     public void takeScreenshot(String fileName) {
         try {
-            // 1. Cuộn lên đầu trang
+            // Cuộn lên đầu
             ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
             Thread.sleep(500);
 
-            // 2. Chụp ảnh cho Allure (Byte Array)
+            // 1. Allure Report (Byte)
             byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
             Allure.addAttachment(fileName, new ByteArrayInputStream(content));
 
-            // 3. Lưu ảnh ra File (Để xem offline nếu cần)
+            // 2. Lưu File (Local/Artifacts)
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
+            String fullFileName = "screenshots/" + fileName + "_" + timestamp + ".png";
 
             File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
             Path destination = Paths.get(fullFileName);
             Files.createDirectories(destination.getParent());
             Files.copy(scrFile.toPath(), destination);
 
-            System.out.println("📸 Đã chụp ảnh lỗi: " + fullFileName);
+            System.out.println("📸 Saved screenshot: " + fullFileName);
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -1,60 +1,30 @@
 package com.java.automation.selenium;
 
-import io.qameta.allure.Allure;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.openqa.selenium.*;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.Assert;
+import org.testng.annotations.Listeners;
+import org.testng.annotations.Test;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
-@ExtendWith(ScreenshotOnFailureExtension.class)
+@Listeners(TestListener.class)
 public class RegisterTest extends BaseSeleniumTest {
 
     private static final int TIMEOUT = 15;
 
-    /**
-     * HÀM CHỤP ẢNH THỦ CÔNG
-     */
-    public void takeScreenshot(String fileName, String fail) {
-        try {
-            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
-            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
-            Thread.sleep(500); // Chờ cuộn xong
-
-            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
-            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
-            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
-
-            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
-
-            File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
-            java.nio.file.Files.createDirectories(destination.getParent());
-            java.nio.file.Files.copy(scrFile.toPath(), destination);
-
-            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     private void prepareRegisterPage() {
-        driver.get("http://localhost:9090/login");
-        driver.manage().window().maximize();
+        driver.get(BASE_URL + "login");
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+
         if (driver.getCurrentUrl().contains("admin")) {
-            driver.get("http://localhost:9090/logout");
-            driver.get("http://localhost:9090/login");
+            driver.get(BASE_URL + "logout");
+            driver.get(BASE_URL + "login");
         }
+
         try {
             WebElement signUpTab = driver.findElement(By.xpath("//a[contains(text(), 'sign up') and @data-toggle='tab']"));
             if (!signUpTab.getAttribute("class").contains("active")) {
@@ -73,6 +43,7 @@ public class RegisterTest extends BaseSeleniumTest {
         driver.findElement(By.xpath("//div[@id='signup']//input[@name='fullname']")).sendKeys(name);
         driver.findElement(By.xpath("//div[@id='signup']//input[@name='email']")).sendKeys(email);
         driver.findElement(By.xpath("//div[@id='signup']//input[@name='password']")).sendKeys(pass);
+
         WebElement checkbox = driver.findElement(By.id("signup-check"));
         if (!checkbox.isSelected()) {
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", checkbox);
@@ -80,7 +51,7 @@ public class RegisterTest extends BaseSeleniumTest {
     }
 
     // --- TEST CASE 1: ĐĂNG KÝ THÀNH CÔNG ---
-    @Test
+    @Test(priority = 1)
     void register_success_with_unique_data() {
         prepareRegisterPage();
         long timestamp = System.currentTimeMillis();
@@ -95,19 +66,17 @@ public class RegisterTest extends BaseSeleniumTest {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
         try {
             WebElement successMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-success")));
-            Assertions.assertTrue(successMsg.getText().contains("thành công"), "Không thấy chữ 'thành công'");
-
-
+            Assert.assertTrue(successMsg.getText().contains("thành công"), "Không thấy chữ 'thành công'");
         } catch (Exception e) {
-            Assertions.fail("Đăng ký thất bại.");
+            Assert.fail("Đăng ký thất bại.");
         }
     }
 
     // --- TEST CASE 2: ĐĂNG KÝ THẤT BẠI DO TRÙNG ID ---
-    @Test
+    @Test(priority = 2)
     void register_fail_duplicate_id() {
         prepareRegisterPage();
-        String existingId = "customer01";
+        String existingId = "customer01"; // Đảm bảo ID này có trong DB (do file data.sql tạo)
         String uniqueEmail = "newmail" + System.currentTimeMillis() + "@gmail.com";
 
         fillRegisterForm(existingId, "Duplicate Tester", uniqueEmail, "123456");
@@ -118,22 +87,19 @@ public class RegisterTest extends BaseSeleniumTest {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
         try {
             WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
-            Assertions.assertTrue(errorMsg.getText().contains("ID Login này đã được sử dụng"), "Lỗi sai nội dung");
-
-            // --- CHỤP ẢNH KHI PASS ---
-            takeScreenshot("FAIL_Register_DuplicateID", "FAIL");
-
+            Assert.assertTrue(errorMsg.getText().contains("ID Login này đã được sử dụng"), "Lỗi sai nội dung");
+            takeScreenshot("FAIL_Register_DuplicateID");
         } catch (Exception e) {
-            Assertions.fail("Test thất bại: Không báo lỗi trùng ID!");
+            Assert.fail("Test thất bại: Không báo lỗi trùng ID!");
         }
     }
 
     // --- TEST CASE 3: ĐĂNG KÝ THẤT BẠI DO TRÙNG EMAIL ---
-    @Test
+    @Test(priority = 3)
     void register_fail_duplicate_email() {
         prepareRegisterPage();
         String uniqueId = "newuser" + System.currentTimeMillis();
-        String existingEmail = "customer01@gmail.com";
+        String existingEmail = "admin@vegana.com"; // Email admin có sẵn
 
         fillRegisterForm(uniqueId, "Duplicate Email Tester", existingEmail, "123456");
 
@@ -143,92 +109,71 @@ public class RegisterTest extends BaseSeleniumTest {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
         try {
             WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
-            Assertions.assertTrue(errorMsg.getText().toLowerCase().contains("email"), "Lỗi sai nội dung");
-
-            // --- CHỤP ẢNH KHI PASS ---
-            takeScreenshot("FAIL_Register_DuplicateEmail", "Fail");
+            Assert.assertTrue(errorMsg.getText().toLowerCase().contains("email"), "Lỗi sai nội dung");
+            takeScreenshot("FAIL_Register_DuplicateEmail");
         } catch (Exception e) {
-            Assertions.fail("Test thất bại: Không báo lỗi trùng Email!");
+            Assert.fail("Test thất bại: Không báo lỗi trùng Email!");
         }
     }
 
-    // --- TEST CASE 4: ĐĂNG KÝ THẤT BẠI DO EMAIL SAI ĐỊNH DẠNG (Thiếu @, .com...) ---
-    @Test
+    // --- TEST CASE 4: ĐĂNG KÝ THẤT BẠI DO EMAIL SAI ĐỊNH DẠNG ---
+    @Test(priority = 4)
     void register_fail_invalid_email_format() {
         prepareRegisterPage();
-
         String uniqueId = "user" + System.currentTimeMillis();
-        // Email sai định dạng (thiếu @)
         String invalidEmail = "nguyenvana_gmail.com";
-
-        System.out.println("Đang test Email sai định dạng: " + invalidEmail);
 
         fillRegisterForm(uniqueId, "Invalid Email Tester", invalidEmail, "123456");
 
         WebElement btnSignUp = driver.findElement(By.xpath("//button[contains(text(), 'sign up free')]"));
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", btnSignUp);
 
-        // Kỹ thuật kiểm tra HTML5 Validation (Vì Chrome sẽ chặn không cho submit)
-        // Ta sẽ kiểm tra xem ô Email có đang bị trình duyệt báo lỗi không
+        // Kiểm tra HTML5 Validation
         WebElement emailInput = driver.findElement(By.xpath("//div[@id='signup']//input[@name='email']"));
-
-        // Lấy tin nhắn lỗi của trình duyệt (Ví dụ: "Please include an '@' in the email address...")
         String validationMessage = emailInput.getAttribute("validationMessage");
 
-        System.out.println("Thông báo của trình duyệt: " + validationMessage);
-
-        // Nếu validationMessage không rỗng => Trình duyệt đã chặn thành công -> PASS
         if (!validationMessage.isEmpty()) {
-            Assertions.assertTrue(true); // Pass
-            takeScreenshot("FAIL_Register_InvalidEmail_BrowserBlocked", "FAIL");
+            Assert.assertTrue(true); // Pass
+            System.out.println("Pass: Trình duyệt chặn email sai.");
+            takeScreenshot("FAIL_Register_InvalidEmail_BrowserBlocked");
         } else {
-            // Trường hợp trình duyệt không chặn (hiếm), ta kiểm tra Server có báo lỗi đỏ không
+            // Kiểm tra Server Validation
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
             try {
                 WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
-                takeScreenshot("FAIL_Register_InvalidEmail_ServerBlocked", "FAIL");
+                takeScreenshot("FAIL_Register_InvalidEmail_ServerBlocked");
             } catch (Exception e) {
-                Assertions.fail("Thất bại: Nhập email sai định dạng mà hệ thống không báo lỗi gì cả!");
+                Assert.fail("Thất bại: Nhập email sai định dạng mà hệ thống không báo lỗi gì cả!");
             }
         }
     }
 
-    // --- TEST CASE 5: ĐĂNG KÝ THẤT BẠI DO MẬT KHẨU QUÁ NGẮN (< 6 ký tự) ---
-    @Test
+    // --- TEST CASE 5: MẬT KHẨU NGẮN ---
+    @Test(priority = 5)
     void register_fail_short_password() {
         prepareRegisterPage();
-
         String uniqueId = "user" + System.currentTimeMillis();
         String validEmail = uniqueId + "@test.com";
-        String shortPass = "123"; // Mật khẩu 3 ký tự
-
-        System.out.println("Đang test mật khẩu ngắn: " + shortPass);
+        String shortPass = "123";
 
         fillRegisterForm(uniqueId, "Short Pass Tester", validEmail, shortPass);
 
         WebElement btnSignUp = driver.findElement(By.xpath("//button[contains(text(), 'sign up free')]"));
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", btnSignUp);
 
-        // Kiểm tra lỗi
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         try {
-            // Tìm thông báo lỗi màu đỏ
             WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
-            System.out.println("Lỗi nhận được: " + errorMsg.getText());
-
-            // Kiểm tra nội dung lỗi (Tùy thuộc vào Backend của bạn trả về message gì)
-            // Thường là "Password must be..." hoặc "Mật khẩu phải..." hoặc lỗi chung chung
             boolean isErrorCorrect = errorMsg.getText().toLowerCase().contains("password") ||
                     errorMsg.getText().toLowerCase().contains("mật khẩu") ||
                     errorMsg.getText().toLowerCase().contains("ngắn") ||
-                    errorMsg.getText().toLowerCase().contains("failed"); // Dự phòng lỗi chung
+                    errorMsg.getText().toLowerCase().contains("failed");
 
-            Assertions.assertTrue(isErrorCorrect, "Thông báo lỗi không nhắc gì đến mật khẩu");
-
-            takeScreenshot("FAIL_Register_ShortPassword", "FAIL");
+            Assert.assertTrue(isErrorCorrect, "Thông báo lỗi không nhắc gì đến mật khẩu");
+            takeScreenshot("FAIL_Register_ShortPassword");
 
         } catch (Exception e) {
-            Assertions.fail("Test thất bại: Nhập mật khẩu 3 ký tự mà không thấy báo lỗi đỏ!");
+            Assert.fail("Test thất bại: Nhập mật khẩu 3 ký tự mà không thấy báo lỗi đỏ!");
         }
     }
 }

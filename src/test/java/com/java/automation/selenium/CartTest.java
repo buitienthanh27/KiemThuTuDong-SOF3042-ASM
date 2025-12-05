@@ -1,180 +1,158 @@
 package com.java.automation.selenium;
 
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.openqa.selenium.*;
+import com.java.automation.selenium.BaseSeleniumTest;
+import com.java.automation.selenium.TestListener;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.Keys;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Listeners;
+import org.testng.annotations.Test;
 
 import java.time.Duration;
 import java.util.List;
 
-@ExtendWith(ScreenshotOnFailureExtension.class)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Listeners(TestListener.class)
 public class CartTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
     private static final int TIMEOUT = 10;
 
-    @BeforeEach
+    @BeforeMethod
     void setUp() {
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
-    // --- HÀM CLICK JS (Dùng để trị các nút bị che hoặc khó bấm) ---
+    // --- HÀM CLICK JS ---
     public void clickElementJS(WebElement element) {
         try {
             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
             Thread.sleep(500);
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
         } catch (Exception e) {
-            element.click(); // Thử click thường nếu JS thất bại
+            element.click();
         }
     }
 
-    // --- LOGIC LOGIN (Dựa trên file loginOrRegister.html) ---
+    // --- LOGIC LOGIN ---
     private void ensureLoggedIn() {
-        driver.get("http://localhost:9090/login");
+        driver.get(BASE_URL + "login");
         try {
-            // Kiểm tra nếu đã login (có nút logout hoặc profile) thì bỏ qua
-            // Ở đây check URL cho nhanh
             if (!driver.getCurrentUrl().contains("login")) return;
 
-            // Dựa trên loginOrRegister.html: name="customerId"
             WebElement userField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
             userField.clear();
-            userField.sendKeys("abcd"); // Thay user của bạn vào đây
+            userField.sendKeys("abcd");
 
             driver.findElement(By.name("password")).sendKeys("123123");
 
-            // Nút sign in: class="btn btn-outline" và value="login" hoặc text "sign in now"
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
             clickElementJS(loginBtn);
 
-            // Chờ về trang chủ
-            wait.until(ExpectedConditions.urlToBe("http://localhost:9090/"));
+            wait.until(ExpectedConditions.urlToBe(BASE_URL));
         } catch (Exception e) {
             System.out.println("Đã login hoặc có lỗi login: " + e.getMessage());
         }
     }
 
-    // --- TEST CASE 1: THÊM SẢN PHẨM (Đã sửa lại logic điều hướng) ---
-    @Test
-    @Order(1)
+    // --- TEST CASE 1: THÊM SẢN PHẨM ---
+    @Test(priority = 1)
     void test_add_to_cart_success() {
         ensureLoggedIn();
-        driver.get("http://localhost:9090/products");
+        driver.get(BASE_URL + "products");
 
         try {
-            // 1. Tìm nút Add To Cart
-            // Selector này tìm thẻ <a> nằm trong class 'product-btn' (chính xác theo shop.html)
             wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
             List<WebElement> addButtons = driver.findElements(By.cssSelector(".product-btn a"));
 
-            if (addButtons.isEmpty()) Assertions.fail("Không tìm thấy sản phẩm nào!");
+            if (addButtons.isEmpty()) Assert.fail("Không tìm thấy sản phẩm nào!");
 
-            // Lấy sản phẩm thứ 2 (index 1) để tránh sản phẩm đầu tiên nếu bị lỗi layout
+            // Lấy sản phẩm thứ 2 (index 1)
             WebElement btnAddToCart = addButtons.size() > 1 ? addButtons.get(1) : addButtons.get(0);
 
             System.out.println("Đang click Add to Cart...");
             clickElementJS(btnAddToCart);
 
-            // 2. QUAN TRỌNG: Thay vì chờ URL đổi, ta chờ 1 chút rồi tự vào giỏ
-            // Vì web của bạn thêm xong vẫn đứng ở trang products
-            Thread.sleep(1500); // Chờ 1.5s để server kịp xử lý request thêm hàng
+            // Chờ 1.5s để server xử lý request thêm hàng
+            Thread.sleep(1500);
 
-            // 3. Chủ động chuyển hướng sang trang Cart để kiểm tra
-            driver.get("http://localhost:9090/carts");
+            // Chủ động chuyển hướng sang trang Cart
+            driver.get(BASE_URL + "carts");
 
-            // 4. Validate (Kiểm tra xem có sản phẩm trong bảng không)
-            // Tìm bảng giỏ hàng
+            // Validate
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("table.table-list")));
 
-            // Đếm số dòng sản phẩm
             int rowCount = driver.findElements(By.cssSelector("table.table-list tbody tr")).size();
-            Assertions.assertTrue(rowCount > 0, "Giỏ hàng vẫn trống sau khi thêm!");
-
+            Assert.assertTrue(rowCount > 0, "Giỏ hàng vẫn trống sau khi thêm!");
 
         } catch (Exception e) {
-            Assertions.fail("Lỗi Add Cart: " + e.getMessage());
+            Assert.fail("Lỗi Add Cart: " + e.getMessage());
         }
     }
 
-    // --- TEST 2: CẬP NHẬT SỐ LƯỢNG (SỬA LẠI THEO checkOut.html) ---
-    @Test
-    @Order(2)
+    // --- TEST CASE 2: CẬP NHẬT SỐ LƯỢNG ---
+    @Test(priority = 2)
     void test_update_quantity() {
         if (!driver.getCurrentUrl().contains("cart")) {
-            driver.get("http://localhost:9090/carts"); // URL trang cart của bạn
+            driver.get(BASE_URL + "carts");
         }
 
         try {
-            // Tìm ô input số lượng. Trong HTML: <input type="number" ... onchange="updateQuantity(...)">
-            // Chúng ta tìm input có id bắt đầu bằng 'quantityInput_'
             WebElement qtyInput = wait.until(ExpectedConditions.visibilityOfElementLocated(
                     By.xpath("//input[contains(@id, 'quantityInput_')]")
             ));
 
-            // Xóa và nhập số mới
             qtyInput.clear();
             qtyInput.sendKeys("5");
 
-            // QUAN TRỌNG: HTML dùng sự kiện 'onchange'.
-            // Sự kiện này chỉ kích hoạt khi ta nhấn Enter hoặc click chuột ra ngoài.
+            // Bấm Enter để trigger onchange
             qtyInput.sendKeys(Keys.ENTER);
-            Thread.sleep(1000); // Chờ AJAX gọi lên server cập nhật
+            Thread.sleep(1000);
 
-            // Kiểm tra lại giá trị
             String val = qtyInput.getAttribute("value");
-            Assertions.assertEquals("5", val, "Số lượng chưa được cập nhật!");
+            Assert.assertEquals(val, "5", "Số lượng chưa được cập nhật!");
 
         } catch (Exception e) {
-            Assertions.fail("Lỗi Update Cart: " + e.getMessage());
+            Assert.fail("Lỗi Update Cart: " + e.getMessage());
         }
     }
 
-    // --- TEST 3: XÓA SẢN PHẨM (QUAN TRỌNG: XỬ LÝ MODAL) ---
-    @Test
-    @Order(3)
+    // --- TEST CASE 3: XÓA SẢN PHẨM ---
+    @Test(priority = 3)
     void test_remove_from_cart() {
         if (!driver.getCurrentUrl().contains("cart")) {
-            driver.get("http://localhost:9090/carts");
+            driver.get(BASE_URL + "carts");
         }
 
         try {
-            // Đếm số dòng trước khi xóa
             int oldSize = driver.findElements(By.cssSelector("table.table-list tbody tr")).size();
-            if (oldSize == 0) Assertions.fail("Giỏ hàng rỗng!");
+            if (oldSize == 0) Assert.fail("Giỏ hàng rỗng!");
 
-            // 1. Tìm nút thùng rác (fa-trash-alt)
-            // Trong HTML: <a onclick="showConfigModalDialog(...)"> <i class="fas fa-trash-alt"></i> </a>
             WebElement trashBtn = wait.until(ExpectedConditions.elementToBeClickable(
                     By.cssSelector(".fa-trash-alt")
             ));
 
-            // Click vào thùng rác => Sẽ hiện Modal
             clickElementJS(trashBtn);
 
-            // 2. XỬ LÝ MODAL (id="configmationId")
-            // Phải chờ Modal hiện lên
-            WebElement modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
+            // Xử lý Modal Confirm
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
 
-            // 3. Tìm nút YES trong modal (id="yesOption")
-            WebElement yesBtn = modal.findElement(By.id("yesOption"));
-
-            // Click Yes để xác nhận xóa
+            WebElement yesBtn = driver.findElement(By.id("yesOption"));
             wait.until(ExpectedConditions.elementToBeClickable(yesBtn));
             yesBtn.click();
 
-            // 4. Validate
-            // Chờ trang reload hoặc dòng bị xóa đi
-            Thread.sleep(1500); // Chờ reload
+            // Chờ reload
+            Thread.sleep(1500);
             int newSize = driver.findElements(By.cssSelector("table.table-list tbody tr")).size();
 
-            Assertions.assertTrue(newSize < oldSize, "Sản phẩm vẫn còn, chưa bị xóa!");
+            Assert.assertTrue(newSize < oldSize, "Sản phẩm vẫn còn, chưa bị xóa!");
 
         } catch (Exception e) {
-            Assertions.fail("Lỗi Xóa Cart: " + e.getMessage());
+            Assert.fail("Lỗi Xóa Cart: " + e.getMessage());
         }
     }
 }

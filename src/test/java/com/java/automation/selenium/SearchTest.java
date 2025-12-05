@@ -1,29 +1,26 @@
 package com.java.automation.selenium;
 
-import io.qameta.allure.Allure;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.openqa.selenium.*;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
-
-import java.io.ByteArrayInputStream;
-import java.io.File;
+import org.testng.Assert;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Listeners;
+import org.testng.annotations.Test;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
-@ExtendWith(ScreenshotOnFailureExtension.class)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Listeners(TestListener.class)
 public class SearchTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
     private static final int TIMEOUT = 10;
 
-    @BeforeEach
+    @BeforeMethod
     void setUp() {
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
@@ -39,36 +36,10 @@ public class SearchTest extends BaseSeleniumTest {
         }
     }
 
-    public void takeScreenshot(String fileName) {
-        try {
-            // 1. QUAN TRỌNG: Cuộn lên đầu trang trước tiên
-            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
-            Thread.sleep(500); // Chờ cuộn xong
-
-            // 2. Chụp ảnh dưới dạng Byte (Để đính kèm vào Allure Report)
-            byte[] content = ((TakesScreenshot) driver).getScreenshotAs(OutputType.BYTES);
-            Allure.addAttachment(fileName, new ByteArrayInputStream(content));
-
-            // 3. Lưu ảnh ra File (Để xem offline hoặc lưu vào Artifacts của Github)
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-            String fullFileName = "screenshots/ERROR_" + fileName + "_" + timestamp + ".png";
-
-            File scrFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            java.nio.file.Path destination = java.nio.file.Paths.get(fullFileName);
-            java.nio.file.Files.createDirectories(destination.getParent());
-            java.nio.file.Files.copy(scrFile.toPath(), destination);
-
-            System.out.println("📸 Đã chụp ảnh và đính kèm vào Allure Report: " + fullFileName);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    // --- TEST 1: TÌM KIẾM KEYWORD (SỬA LOCATOR) ---
-    @Test
-    @Order(1)
+    // --- TEST 1: TÌM KIẾM KEYWORD ---
+    @Test(priority = 1)
     void test_search_by_keyword_success() {
-        driver.get("http://localhost:9090/");
+        driver.get(BASE_URL);
 
         try {
             System.out.println("Test 1: Tìm kiếm 'Snack'...");
@@ -81,7 +52,7 @@ public class SearchTest extends BaseSeleniumTest {
             searchInput.clear();
             searchInput.sendKeys("Snack");
 
-            // SỬA LOCATOR NÚT SEARCH: Tìm nút button nằm ngay sau thẻ input
+            // Tìm nút button nằm ngay sau thẻ input
             WebElement searchBtn = driver.findElement(By.xpath("//input[contains(@placeholder, 'Search')]/following-sibling::button"));
 
             clickElementJS(searchBtn);
@@ -90,24 +61,23 @@ public class SearchTest extends BaseSeleniumTest {
             wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-card")));
             List<WebElement> productNames = driver.findElements(By.cssSelector(".product-name h6 a"));
 
-            Assertions.assertTrue(productNames.size() > 0, "Không tìm thấy sản phẩm nào!");
+            Assert.assertTrue(productNames.size() > 0, "Không tìm thấy sản phẩm nào!");
 
             String firstProductName = productNames.get(0).getText().toLowerCase();
-            Assertions.assertTrue(firstProductName.contains("snack"), "Tên sản phẩm không đúng: " + firstProductName);
+            Assert.assertTrue(firstProductName.contains("snack"), "Tên sản phẩm không đúng: " + firstProductName);
 
-            takeScreenshot("Search_Keyword_PASS");
+            // takeScreenshot("Search_Keyword_PASS"); // Mở comment nếu muốn chụp khi Pass
 
         } catch (Exception e) {
             takeScreenshot("Search_Keyword_Error");
-            Assertions.fail("Lỗi tìm kiếm: " + e.getMessage());
+            Assert.fail("Lỗi tìm kiếm: " + e.getMessage());
         }
     }
 
     // --- TEST 2: TÌM KIẾM KHÔNG CÓ KẾT QUẢ ---
-    @Test
-    @Order(2)
+    @Test(priority = 2)
     void test_search_no_result() {
-        driver.get("http://localhost:9090/");
+        driver.get(BASE_URL);
 
         try {
             System.out.println("Test 2: Tìm kiếm sai...");
@@ -127,28 +97,27 @@ public class SearchTest extends BaseSeleniumTest {
             List<WebElement> products = driver.findElements(By.cssSelector(".product-card"));
 
             if (products.isEmpty()) {
-                // Chụp ảnh bằng chứng list rỗng (Hàm takeScreenshot sẽ tự cuộn lên đầu)
+                // Chụp ảnh bằng chứng list rỗng
                 takeScreenshot("Search_NoResult_PASS");
-                Assertions.assertTrue(true);
+                Assert.assertTrue(true);
             } else {
                 takeScreenshot("Search_NoResult_FAIL");
-                Assertions.fail("Lỗi: Vẫn tìm thấy sản phẩm!");
+                Assert.fail("Lỗi: Vẫn tìm thấy sản phẩm!");
             }
 
         } catch (Exception e) {
             takeScreenshot("Search_NoResult_Error");
-            Assertions.fail("Lỗi test: " + e.getMessage());
+            Assert.fail("Lỗi test: " + e.getMessage());
         }
     }
 
     // --- TEST 3: TÌM THEO DANH MỤC ---
-    @Test
-    @Order(3)
+    @Test(priority = 3)
     void test_filter_by_category() {
-        driver.get("http://localhost:9090/");
+        driver.get(BASE_URL);
 
         try {
-            // Tìm Menu Categories (dùng dấu chấm để tìm text chứa trong thẻ con)
+            // Tìm Menu Categories
             WebElement categoryMenu = wait.until(ExpectedConditions.elementToBeClickable(
                     By.xpath("//a[contains(., 'Categories')]")
             ));
@@ -169,14 +138,14 @@ public class SearchTest extends BaseSeleniumTest {
             wait.until(ExpectedConditions.urlContains("product"));
 
             // Chụp ảnh kết quả lọc danh mục
-            takeScreenshot("Search_Category_PASS");
+            // takeScreenshot("Search_Category_PASS"); // Mở comment nếu cần
 
             List<WebElement> products = driver.findElements(By.cssSelector(".product-card"));
-            Assertions.assertTrue(products.size() > 0, "Danh mục rỗng!");
+            Assert.assertTrue(products.size() > 0, "Danh mục rỗng!");
 
         } catch (Exception e) {
             takeScreenshot("Search_Category_Error");
-            Assertions.fail("Lỗi danh mục: " + e.getMessage());
+            Assert.fail("Lỗi danh mục: " + e.getMessage());
         }
     }
 }

@@ -1,28 +1,28 @@
 package com.java.automation.selenium;
 
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Listeners;
+import org.testng.annotations.Test;
 
 import java.time.Duration;
+import java.util.List;
 
-@ExtendWith(ScreenshotOnFailureExtension.class)
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@Listeners(TestListener.class)
 public class PerformanceTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
     private static final long MAX_LOAD_TIME_MS = 5000;
-    private static final int TIMEOUT = 10;
+    private static final int TIMEOUT = 15;
 
-    @BeforeEach
-    void setUpWait() {
-        // Không khởi tạo new ChromeDriver() ở đây nữa!
-        // Driver đã được BaseSeleniumTest khởi tạo 1 lần duy nhất rồi.
-        // Ta chỉ cần khởi tạo biến wait thôi.
+    @BeforeMethod
+    void setUp() {
+        // QUAN TRỌNG: Không khởi tạo driver mới ở đây nữa!
+        // Chúng ta dùng driver static từ BaseSeleniumTest để chỉ mở 1 trình duyệt duy nhất.
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
     }
 
@@ -58,15 +58,14 @@ public class PerformanceTest extends BaseSeleniumTest {
     private void ensureCartHasProduct() {
         driver.get(BASE_URL + "carts");
         try {
-            // Kiểm tra xem bảng có dòng nào không
-            if (driver.findElements(By.cssSelector("table.table-list tbody tr")).isEmpty()) {
+            List<WebElement> rows = driver.findElements(By.cssSelector("table.table-list tbody tr"));
+            if (rows.isEmpty()) {
                 System.out.println("🛒 Giỏ hàng rỗng -> Đang đi thêm hàng...");
                 driver.get(BASE_URL + "products");
+                wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
+                clickElementJS(driver.findElements(By.cssSelector(".product-btn a")).get(0));
 
-                WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
-                clickElementJS(addBtn);
-
-                Thread.sleep(1500); // Chờ server xử lý
+                Thread.sleep(1500);
                 driver.get(BASE_URL + "carts");
             }
         } catch (Exception e) {
@@ -105,13 +104,13 @@ public class PerformanceTest extends BaseSeleniumTest {
                 "return performance.timing.domComplete - performance.timing.domLoading;"
         );
 
-        System.out.println("--------------------------------------------------");
+        System.out.println("==================================================");
         System.out.println("📊 REPORT: " + pageName);
         System.out.println("   🔗 URL: " + driver.getCurrentUrl());
         System.out.println("   ⏱️ Total Load Time: " + loadTime + " ms");
         System.out.println("   📡 Server Latency: " + latency + " ms");
         System.out.println("   🎨 DOM Render Time: " + renderTime + " ms");
-        System.out.println("--------------------------------------------------");
+        System.out.println("==================================================");
 
         if (loadTime > MAX_LOAD_TIME_MS) {
             System.err.println("⚠️ CẢNH BÁO: Trang " + pageName + " tải chậm (" + loadTime + "ms)");
@@ -120,25 +119,22 @@ public class PerformanceTest extends BaseSeleniumTest {
         }
     }
 
-    // --- CÁC TEST CASE (Dùng BASE_URL từ lớp cha) ---
+    // --- CÁC TEST CASE ---
 
-    @Test
-    @Order(1)
+    @Test(priority = 1)
     void test_home_page_performance() {
         driver.get(BASE_URL);
         measurePerformance("Home Page");
     }
 
-    @Test
-    @Order(2)
+    @Test(priority = 2)
     void test_product_page_performance() {
         driver.get(BASE_URL + "products");
         wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-card")));
         measurePerformance("Product List Page");
     }
 
-    @Test
-    @Order(3)
+    @Test(priority = 3)
     void test_product_detail_performance() {
         driver.get(BASE_URL + "products");
 
@@ -154,13 +150,12 @@ public class PerformanceTest extends BaseSeleniumTest {
         measurePerformance("Product Detail Page");
     }
 
-    @Test
-    @Order(4)
+    @Test(priority = 4)
     void test_admin_flow_performance() {
         driver.get(BASE_URL + "login");
 
-        // Nếu chưa login thì login
-        if (driver.getCurrentUrl().contains("login")) {
+        // Login Admin
+        if (driver.findElements(By.name("customerId")).size() > 0) {
             driver.findElement(By.name("customerId")).sendKeys("admin");
             driver.findElement(By.name("password")).sendKeys("123123");
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in')]"));
@@ -183,9 +178,9 @@ public class PerformanceTest extends BaseSeleniumTest {
 
         System.out.println("👉 Measuring: Navigate to Product Management...");
         try {
-            // Mở menu cha nếu cần
-            if (!driver.findElements(By.xpath("//p[contains(text(), 'Management System')]")).isEmpty()) {
-                clickElementJS(driver.findElement(By.xpath("//p[contains(text(), 'Management System')]")));
+            List<WebElement> parentMenus = driver.findElements(By.xpath("//p[contains(text(), 'Management System')]"));
+            if (!parentMenus.isEmpty()) {
+                clickElementJS(parentMenus.get(0));
                 Thread.sleep(500);
             }
         } catch (Exception ignored) {}
@@ -197,7 +192,6 @@ public class PerformanceTest extends BaseSeleniumTest {
 
         wait.until(ExpectedConditions.urlContains("products"));
         wait.until(ExpectedConditions.presenceOfElementLocated(By.id("add-row")));
-
         measurePerformance("Navigate to Product Management");
 
         System.out.println("👉 Measuring: Navigate to Order Management...");
@@ -206,12 +200,10 @@ public class PerformanceTest extends BaseSeleniumTest {
 
         wait.until(ExpectedConditions.urlContains("orders"));
         wait.until(ExpectedConditions.presenceOfElementLocated(By.id("add-row")));
-
         measurePerformance("Navigate to Order Management");
     }
 
-    @Test
-    @Order(5)
+    @Test(priority = 5)
     void test_add_to_cart_performance() {
         ensureLoggedIn();
         driver.get(BASE_URL + "products");
@@ -224,16 +216,17 @@ public class PerformanceTest extends BaseSeleniumTest {
 
         clickElementJS(addBtn);
 
+        // Chờ server xử lý ngầm
         try { Thread.sleep(1500); } catch (InterruptedException e) {}
 
+        // Chủ động vào trang cart để đo
         driver.get(BASE_URL + "carts");
         wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("table")));
 
-        measurePerformance("Action: Load Cart Page (After Add)");
+        measurePerformance("Action: Add To Cart (Load Cart)");
     }
 
-    @Test
-    @Order(6)
+    @Test(priority = 6)
     void test_checkout_page_performance() {
         ensureLoggedIn();
         ensureCartHasProduct();

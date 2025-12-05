@@ -90,7 +90,7 @@ jobs:
         run: |
           mkdir -p test-output/reports test-output/screenshots test-output/logs
           mvn -q test -DsuiteXmlFile=src/test/resources/testng.xml
-        continue-on-error: true
+      
 
       # --------------------------------------------------
       - name: Upload Test Reports

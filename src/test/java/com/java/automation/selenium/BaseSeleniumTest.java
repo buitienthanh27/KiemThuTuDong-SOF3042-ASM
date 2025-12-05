@@ -1,4 +1,4 @@
-package com.java.selenium;
+package com.java.automation.selenium;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
 import io.qameta.allure.Allure;

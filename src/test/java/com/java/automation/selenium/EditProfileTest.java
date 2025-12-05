@@ -1,4 +1,4 @@
-package com.java.selenium;
+package com.java.automation.selenium;
 
 import io.qameta.allure.Allure;
 import java.io.ByteArrayInputStream; // Dòng này chắc có rồi, kiểm tra lại cho chắc
@@ -11,7 +11,6 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
-import java.io.ByteArrayInputStream;
 import java.io.File;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;

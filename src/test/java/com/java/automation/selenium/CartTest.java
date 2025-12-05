@@ -1,4 +1,4 @@
-package com.java.selenium;
+package com.java.automation.selenium;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;

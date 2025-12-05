@@ -1,4 +1,4 @@
-package com.java.selenium;
+package com.java.automation.selenium;
 import java.time.Duration;
 
 import io.qameta.allure.Allure;

@@ -1,4 +1,4 @@
-package com.java.selenium;
+package com.java.automation.selenium;
 
 import io.qameta.allure.Allure;
 import org.junit.jupiter.api.extension.ExtensionContext;

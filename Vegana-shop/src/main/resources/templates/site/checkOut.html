@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <meta name="author" content="mironcoder" />
+  <meta name="email" content="mironcoder@gmail.com" />
+  <meta name="profile" content="https://themeforest.net/user/mironcoder" />
+  <meta name="name" content="vegana" />
+  <meta name="title" content="vegana - organic food html template" />
+  <meta name="keywords" content="vegana, organic, food, shop, ecommerce, store, html, agriculture, vegetable, organic food, organic product, organic farm, organic life, organic shop, food store" />
+  <title>Vegana - Checkout</title>
+  <link rel="icon" href="images/favicon.png" />
+  <link rel="stylesheet" href="fonts/flaticon/flaticon.css" />
+  <link rel="stylesheet" href="font-awesome/5.14.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/vendor/bootstrap.min.css" />
+  <link rel="stylesheet" href="css/custom/main.css" />
+  <link rel="stylesheet" href="css/custom/checkout.css" />
+</head>
+<body>
+<!-- Header -->
+<header th:replace="~{/fragments/header :: header}"></header>
+<!-- Nav -->
+<nav th:replace="~{/fragments/nav :: nav}"></nav>
+
+<section class="single-banner">
+  <div class="container">
+    <div class="row">
+      <div class="col-lg-12">
+        <div class="single-content">
+          <h2>Checkout</h2>
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a th:href="@{/}">Home</a></li>
+            <li class="breadcrumb-item"><a th:href="@{/products}">Product list</a></li>
+            <li class="breadcrumb-item"><a href="#">Product details</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Checkout</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="checkout-part">
+  <div class="container">
+    <form th:action="@{/checkout}" th:object="${order}" method="post">
+      <div class="row">
+        <div class="col-lg-12">
+          <div class="row checkout-form">
+            <div class="col-lg-12">
+              <div class="check-form-title"><h3>Shipping Address</h3></div>
+            </div>
+            <div class="col-lg-12">
+              <div class="form-group">
+                <input type="text" class="form-control" placeholder="Full name" th:field="*{receiver}" required="required" />
+              </div>
+            </div>
+            <div class="col-lg-12">
+              <div class="form-group">
+                <input type="text" class="form-control" placeholder="Address" th:field="*{address}" required="required" />
+              </div>
+            </div>
+            <div class="col-lg-12">
+              <div class="form-group">
+                <input type="text" class="form-control" placeholder="Phone Number" th:field="*{phone}" required="required" />
+              </div>
+            </div>
+            <div class="col-lg-12">
+              <div class="form-group">
+                <input type="text" class="form-control" placeholder="Description" th:field="*{description}" required="required" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row checkout-table">
+        <div class="col-lg-12">
+          <div class="check-form-title"><h3>Confirm Order</h3></div>
+          <div class="table-scroll">
+            <table class="table-list">
+              <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Name</th>
+                <th scope="col">Product</th>
+                <th scope="col">Price</th>
+                <th scope="col">Discount</th>
+                <th scope="col">Quantity</th>
+                <th scope="col">Total</th>
+                <th scope="col">Action</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr th:each="item, iState : ${cartProductViewDTO}">
+                <td th:text="${iState.index + 1}"></td>
+                <td class="table-name">
+                  <h5 th:text="${item.name}"></h5>
+                </td>
+                <td class="table-product">
+                  <img th:src="@{'/loadImage?imageName=' + ${item.image}}" alt="product" />
+                </td>
+                <td class="table-price">
+                  <h5 th:text="${item.price}"></h5>
+                </td>
+                <td class="table-discount">
+                  <h5 th:text="${item.discount}"></h5>
+                </td>
+                <td class="table-quantity">
+                  <input type="number" min="1" id="quantityInput_[[${item.productId}]]" th:data-id="${item.productId}" th:data-price="${item.price}" th:data-image="${item.image}" th:data-discount="${item.discount}" th:data-name="${item.name}" th:value="${item.quantity}" onchange="updateQuantity(this.value, this.getAttribute('data-id'), this.getAttribute('data-price'), this.getAttribute('data-image'), this.getAttribute('data-discount'), this.getAttribute('data-name'), this.getAttribute('data-total'))">
+                  <span id="quantityError_[[${item.productId}]]" style="color: #000000; display: none;">Quantity must be at least 1</span>
+                </td>
+                <td class="table-total">
+                  <h5 id="totalPrice_[[${item.productId}]]" th:text="${item.totalPrice}" th:attr="data-total=${item.totalPrice}"></h5>
+                </td>
+                <td class="table-action">
+                  <a th:href="@{/productDetail(productId=${item.productId})}"><i class="fas fa-eye"></i></a>
+                  <a href="#" th:data-id="${item.productId}" th:data-name="${item.name}" onclick="showConfigModalDialog(this.getAttribute('data-id'), this.getAttribute('data-name'))">
+                    <i class="fas fa-trash-alt"></i>
+                  </a>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+
+            <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <script>
+              function updateQuantity(newQuantity, productId, price, image, discount, name, initialTotal) {
+                var totalPrice = newQuantity * price;
+                var data = {
+                  productId: productId,
+                  quantity: newQuantity,
+                  price: price,
+                  totalPrice: totalPrice,
+                  image: image,
+                  discount: discount,
+                  name: name
+                };
+
+                $.ajax({
+                  url: '/updateCart',
+                  type: 'PUT',
+                  contentType: 'application/json',
+                  data: JSON.stringify(data),
+                  success: function(response) {
+                    // Update total price on the page
+                    var totalPriceElement = document.getElementById("totalPrice_" + productId);
+                    totalPriceElement.innerText = totalPrice.toFixed(2);
+                    totalPriceElement.setAttribute("data-total", totalPrice.toFixed(2));
+                  },
+                  error: function(error) {
+                    // Handle error
+                    console.error(error);
+                    // Reset total price to initial value
+                    document.getElementById("totalPrice_" + productId).innerText = initialTotal;
+                  }
+                });
+              }
+
+              function deleteCartItem(productId, customerId) {
+                fetch(`/deleteCartItem/${customerId}/${productId}`, {
+                  method: 'DELETE',
+                })
+                        .then((response) => {
+                          if (response.ok) {
+                            // Successfully deleted item - reload the page or update your UI accordingly
+                            location.reload();
+                          } else {
+                            // Handle error
+                            alert('Error while deleting item');
+                          }
+                        })
+                        .catch((error) => {
+                          // Handle network error
+                          alert('Network error while deleting item');
+                        });
+              }
+
+              function showConfigModalDialog(productId, name) {
+                // Show the modal dialog
+                $('#configmationId').modal('show');
+
+                // Update the dialog content
+                $('#configmationId .modal-body p').text(`Do you want to remove ${name} from your shopping cart?`);
+
+                // Handle the Yes button click
+                $('#yesOption').click(function() {
+                  // Get customerId from somewhere as you see fit
+                  var customerId = document.body.getAttribute('data-customer-id');
+                  console.log('customerId:', customerId); // Log customerId
+
+                  deleteCartItem(productId, customerId);
+
+                  // Close the modal dialog
+                  $('#configmationId').modal('hide');
+                });
+              }
+            </script>
+            <!-- Modal -->
+            <div class="modal" tabindex="-1" role="dialog" id="configmationId">
+              <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Confirm</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                      <span aria-hidden="true">&times;</span>
+                    </button>
+                  </div>
+                  <div class="modal-body">
+                    <p>Do you want to remove this product from your shopping cart?</p>
+                  </div>
+                  <div class="modal-footer">
+                    <a id="yesOption" type="button" class="btn btn-success">Yes</a>
+                    <button type="button" class="btn btn-danger" data-dismiss="modal">No</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-lg-12">
+          <div class="checkout-charge">
+            <ul>
+              <li><span>Shipping Charge</span><span>$0</span></li>
+              <li><span>Total</span><span>[['$'+${#numbers.formatDecimal(totalPrice, 1, 'DEFAULT', 0, 'DEFAULT')}]]</span></li>
+            </ul>
+          </div>
+          <div class="check-order-btn">
+            <button class="btn btn-inline" type="submit">
+              <i class="fas fa-paper-plane"></i>
+              <span>Place order</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<section class="news-part">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-5 col-lg-6">
+        <div class="news-content"><h2>Subscribe for Latest Offers</h2></div>
+      </div>
+      <div class="col-md-7 col-lg-6">
+        <form class="search-form news-form">
+          <input type="text" placeholder="Enter Email Address" /><button class="btn btn-inline">
+          <i class="fas fa-envelope"></i><span>Subscribe</span>
+        </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer th:replace="~{/fragments/footer :: footer}"></footer>
+
+<div class="footer-bottom">
+  <div class="container">
+    <p>
+      Copyright &copy; 2020.
+      All rights reserved by - <a target="_blank" href="https://themeforest.net/user/mironcoder">Mironcoder</a>
+    </p>
+    <ul class="pay-card">
+      <li>
+        <a href="#"><img src="images/pay-card/01.jpg" alt="payment-1" /></a>
+      </li>
+      <li>
+        <a href="#"><img src="images/pay-card/02.jpg" alt="payment-2" /></a>
+      </li>
+      <li>
+        <a href="#"><img src="images/pay-card/03.jpg" alt="payment-3" /></a>
+      </li>
+      <li>
+        <a href="#"><img src="images/pay-card/04.jpg" alt="payment-4" /></a>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<script src="js/vendor/jquery-1.12.4.min.js"></script>
+<script src="js/vendor/popper.min.js"></script>
+<script src="js/vendor/bootstrap.min.js"></script>
+<script src="js/custom/main.js"></script>
+</body>
+</html>

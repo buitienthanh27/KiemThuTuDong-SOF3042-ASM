@@ -44,7 +44,7 @@ public class TestListener implements ITestListener {
                 File src = ((TakesScreenshot) BaseSeleniumTest.driver).getScreenshotAs(OutputType.FILE);
                 String methodName = result.getName();
                 String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-                String fileName = "screenshots/FAIL_" + methodName + "_" + time + ".png";
+                String fileName = "test-output/screenshots/FAIL_" + methodName + "_" + time + ".png";
                 Path dest = Paths.get(fileName);
                 Files.createDirectories(dest.getParent());
                 Files.copy(src.toPath(), dest);
@@ -54,7 +54,7 @@ public class TestListener implements ITestListener {
                 Allure.addAttachment(methodName + "_Failure", new ByteArrayInputStream(content));
 
                 // --- THÊM MỚI: Đính ảnh vào ExtentReport ---
-                // ExtentReportManager.getTest().addScreenCaptureFromPath(dest.toAbsolutePath().toString());
+                ExtentReportManager.getTest().addScreenCaptureFromPath(dest.toAbsolutePath().toString());
 
             } catch (Exception e) {
                 e.printStackTrace();

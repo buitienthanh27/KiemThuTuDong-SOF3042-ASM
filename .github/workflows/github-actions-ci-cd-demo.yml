@@ -5,11 +5,9 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
-  workflow_dispatch:
 
 jobs:
   automation-tests:
-    name: Run Spring Boot + Selenium Tests
     runs-on: ubuntu-latest
 
     services:
@@ -27,99 +25,56 @@ jobs:
           --health-retries=10
 
     steps:
-      # --------------------------------------------------
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # --------------------------------------------------
       - name: Setup JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
 
-      # --------------------------------------------------
       - name: Install Chrome
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
-      # --------------------------------------------------
-      - name: Install MySQL Client
-        run: sudo apt-get install -y default-mysql-client
+      # Build và bỏ qua test để đảm bảo code compile được trước đã
+      - name: Build Application
+        run: mvn -B clean package -DskipTests
 
-      # --------------------------------------------------
-      - name: Wait for MySQL Ready
-        run: |
-          echo "⏳ Waiting for MySQL..."
-          timeout 60 bash -c 'until mysqladmin ping -h 127.0.0.1 -uroot -p123456 --silent; do sleep 2; done'
-        env:
-          MYSQL_PWD: 123456
-
-      # --------------------------------------------------
-      - name: Initialize Database
-        run: |
-          echo "Creating vegana_store database..."
-          mysql -h 127.0.0.1 -uroot -p123456 -e "CREATE DATABASE IF NOT EXISTS vegana_store;"
-          
-          if [ -f vegana.sql ]; then
-            echo "Importing schema..."
-            mysql -h 127.0.0.1 -uroot -p123456 vegana_store < vegana.sql
-          else
-            echo "⚠️ NO vegana.sql found — skipping import."
-          fi
-        env:
-          MYSQL_PWD: 123456
-
-      # --------------------------------------------------
-      - name: Build Application (without running tests)
-        run: mvn -q -DskipTests clean package
-
-      # --------------------------------------------------
+      # Khởi động Server (Sửa lại port 9090 nếu bạn muốn, nhưng chuẩn là 8080)
+      # Lưu ý: Nếu application.properties của bạn là 9090 thì sửa curl bên dưới thành 9090
       - name: Start Spring Boot Application
         run: |
           echo "🚀 Starting Spring Boot..."
-          nohup mvn spring-boot:run > app.log 2>&1 &
+          nohup java -jar target/*.jar > app.log 2>&1 &
           echo "⏳ Waiting for backend to start..."
           sleep 40
+          # Kiểm tra health check (Nếu port là 9090 thì sửa số 8080 -> 9090)
           curl -f http://localhost:9090 || exit 1
 
-      # --------------------------------------------------
-      - name: Run Automation Tests (Selenium + TestNG)
+      # --- PHẦN QUAN TRỌNG NHẤT: CHẠY TEST JUNIT 5 ---
+      # Xóa bỏ tham số -DsuiteXmlFile của TestNG để Maven chạy cả JUnit
+      - name: Run Automation Tests (JUnit 5)
         run: |
-          mkdir -p test-output/reports test-output/screenshots test-output/logs
-          mvn -q test -DsuiteXmlFile=src/test/resources/testng.xml
+          mvn clean test
         continue-on-error: true
-      # --------------------------------------------------
+
+      # Upload Báo cáo (Sửa lại đường dẫn chuẩn của Maven/Allure)
       - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-report
-          path: test-output/
+          name: test-artifacts
+          path: |
+            target/surefire-reports/
+            target/allure-results/
+            screenshots/
+            app.log
           retention-days: 14
 
-      # --------------------------------------------------
-      - name: Upload Surefire Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: surefire-reports
-          path: target/surefire-reports/
-
-      # --------------------------------------------------
-      - name: Upload App Logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-log
-          path: app.log
-
-      # --------------------------------------------------
       - name: Cleanup
         if: always()
-        run: pkill -f "spring-boot:run" || true
-
-        #-----------------------------
-
+        run: pkill -f "java -jar" || true

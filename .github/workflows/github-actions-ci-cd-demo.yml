@@ -76,7 +76,7 @@ jobs:
       - name: Build Application (without running tests)
         run: mvn -q -DskipTests clean package
 
-      # --------------------------------------------------
+      # -------------------------------------------------
       - name: Start Spring Boot Application
         run: |
           echo "🚀 Starting Spring Boot..."

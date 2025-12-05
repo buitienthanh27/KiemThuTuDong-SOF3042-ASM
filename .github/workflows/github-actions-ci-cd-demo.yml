@@ -80,9 +80,7 @@ jobs:
       - name: Start Spring Boot Application
         run: |
           echo "🚀 Starting Spring Boot..."
-          # QUAN TRỌNG: Thêm tham số ddl-auto=update để giữ lại dữ liệu
-          nohup mvn spring-boot:run -Dspring-boot.run.arguments="--spring.jpa.hibernate.ddl-auto=update" > app.log 2>&1 &
-          
+          nohup mvn spring-boot:run > app.log 2>&1 &
           echo "⏳ Waiting for backend to start..."
           sleep 40
           curl -f http://localhost:9090 || exit 1
@@ -91,7 +89,6 @@ jobs:
       - name: Run Automation Tests (Selenium + TestNG)
         run: |
           mkdir -p test-output/reports test-output/screenshots test-output/logs
-          # Xóa -q để xem log lỗi nếu có
           mvn test -DsuiteXmlFile=src/test/resources/testng.xml
       
 
@@ -103,6 +100,8 @@ jobs:
           name: test-report
           path: test-output/
           retention-days: 14
+
+      # --- ĐÃ XÓA BƯỚC UPLOAD SUREFIRE REPORTS TẠI ĐÂY ---
 
       # --------------------------------------------------
       - name: Upload App Logs

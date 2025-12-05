@@ -1,6 +1,5 @@
 package com.java.automation.selenium;
 
-import com.java.automation.selenium.BaseSeleniumTest;
 import io.qameta.allure.Allure;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.TakesScreenshot;
@@ -15,7 +14,8 @@ import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class TestListenr implements ITestListener {
+// SỬA TÊN CLASS: Thêm chữ 'e' vào cuối cho khớp với tên file TestListener.java
+public class TestListener implements ITestListener {
 
     @Override
     public void onTestFailure(ITestResult result) {
@@ -24,7 +24,7 @@ public class TestListenr implements ITestListener {
         // Gọi driver từ BaseSeleniumTest
         if (BaseSeleniumTest.driver != null) {
             try {
-                // 1. Chụp ảnh lưu file (để xem trong Artifacts Github)
+                // 1. Chụp ảnh lưu file
                 File src = ((TakesScreenshot) BaseSeleniumTest.driver).getScreenshotAs(OutputType.FILE);
 
                 String methodName = result.getName();
@@ -36,7 +36,7 @@ public class TestListenr implements ITestListener {
                 Files.copy(src.toPath(), dest);
                 System.out.println("📸 Screenshot saved: " + dest.toAbsolutePath());
 
-                // 2. Đính kèm vào Allure Report (Quan trọng để xem trên web)
+                // 2. Đính kèm vào Allure Report
                 byte[] content = ((TakesScreenshot) BaseSeleniumTest.driver).getScreenshotAs(OutputType.BYTES);
                 Allure.addAttachment(methodName + "_Failure", new ByteArrayInputStream(content));
 
@@ -46,8 +46,10 @@ public class TestListenr implements ITestListener {
         }
     }
 
-    // Các method khác của ITestListener có thể để trống nếu không dùng
     @Override public void onTestStart(ITestResult result) {}
     @Override public void onTestSuccess(ITestResult result) {}
     @Override public void onTestSkipped(ITestResult result) {}
+    @Override public void onTestFailedButWithinSuccessPercentage(ITestResult result) {}
+    @Override public void onStart(org.testng.ITestContext context) {}
+    @Override public void onFinish(org.testng.ITestContext context) {}
 }

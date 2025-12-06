@@ -1,5 +1,5 @@
 /*
- Navicat Premium Data Transfer
+
 
  Source Server         : metmoi
  Source Server Type    : MySQL

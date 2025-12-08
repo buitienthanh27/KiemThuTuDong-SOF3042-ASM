@@ -24,4 +24,13 @@ public class TestConfig {
     public static String getProperty(String key) {
         return properties.getProperty(key);
     }
+
+    public static String getBaseUrl() {
+        String url = getProperty("base.url");
+        // Nếu trong file properties không có hoặc rỗng, trả về mặc định localhost
+        if (url != null && !url.isEmpty()) {
+            return url;
+        }
+        return "http://localhost:9090";
+    }
 }

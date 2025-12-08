@@ -2,7 +2,6 @@ package com.java.automation.selenium;
 
 import com.java.automation.config.TestConfig;
 import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -17,34 +16,44 @@ import java.time.Duration;
 
 public class BaseSeleniumTest {
     protected static WebDriver driver;
-    // URL mặc định nếu file config lỗi
     protected String BASE_URL = "http://localhost:9090/";
 
     @BeforeMethod
     public void baseSetUp() {
-        // Setup Chrome Driver
+        // 1. Setup Driver
         WebDriverManager.chromedriver().setup();
+
+        // 2. Cấu hình Chrome Options cho GitHub Actions/Linux
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--remote-allow-origins=*");
-        options.addArguments("--start-maximized");
-        //options.addArguments("--headless");
+
+        // --- BẮT BUỘC PHẢI CÓ CÁC DÒNG NÀY CHO CI/CD ---
+        options.addArguments("--headless=new"); // Chạy không giao diện
+        options.addArguments("--no-sandbox");   // Bắt buộc cho quyền root trong Docker/Linux
+        options.addArguments("--disable-dev-shm-usage"); // Fix lỗi crash memory
+        options.addArguments("--window-size=1920,1080"); // Giả lập màn hình Full HD
+        options.addArguments("--disable-gpu");
+        // -----------------------------------------------
 
         driver = new ChromeDriver(options);
 
-        // Lấy URL từ config
-        String configUrl = TestConfig.getProperty("base.url");
-        if (configUrl != null && !configUrl.isEmpty()) {
-            BASE_URL = configUrl;
+        // 3. Lấy URL từ TestConfig (Đúng chuẩn)
+        try {
+            String configUrl = TestConfig.getBaseUrl();
+            if (configUrl != null && !configUrl.isEmpty()) {
+                BASE_URL = configUrl;
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Không đọc được URL từ config, dùng mặc định.");
         }
 
-        // Đảm bảo URL luôn có dấu / ở cuối để nối chuỗi cho chuẩn
+        // Chuẩn hóa URL
         if (!BASE_URL.endsWith("/")) {
             BASE_URL += "/";
         }
 
-        // Implicit wait ngắn thôi, ta sẽ dùng Explicit wait (WebDriverWait) là chính
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
-        driver.manage().window().maximize();
+        // Không dùng maximize() ở chế độ headless, đã set window-size ở trên
     }
 
     @AfterMethod
@@ -54,74 +63,18 @@ public class BaseSeleniumTest {
         }
     }
 
-    // --- CÁC HÀM DÙNG CHUNG CHO TẤT CẢ TEST ---
-
-    // Hàm click an toàn bằng JS (trị bệnh element not clickable)
+    // Hàm hỗ trợ click an toàn
     protected void clickElementJS(WebElement element) {
         try {
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
-            wait.until(ExpectedConditions.elementToBeClickable(element));
             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(200); // Wait cực ngắn để UI ổn định
+            Thread.sleep(200);
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
         } catch (Exception e) {
-            // Fallback
             try {
                 element.click();
             } catch (Exception ex) {
-                System.out.println("Không click được element: " + ex.getMessage());
+                System.out.println("Click failed: " + ex.getMessage());
             }
         }
-    }
-
-    // Hàm Login chuẩn cho Cart, Checkout sử dụng
-    protected void loginAsCustomer() {
-        loginCommon("abcd", "123123"); // User mặc định
-    }
-
-    // Hàm Login chuẩn cho AdminDashboard sử dụng
-    protected void loginAsAdmin() {
-        loginCommon("admin", "123123"); // Admin mặc định
-    }
-
-    // Logic Login cốt lõi (đã fix lỗi timeout 30s)
-    private void loginCommon(String user, String pass) {
-        driver.get(BASE_URL + "login");
-
-        // Nếu đã login rồi (không còn ở trang login) thì thôi
-        if (!driver.getCurrentUrl().contains("login")) return;
-
-        try {
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-
-            WebElement userField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
-            userField.clear();
-            userField.sendKeys(user);
-
-            driver.findElement(By.name("password")).sendKeys(pass);
-
-            // Tìm nút đăng nhập chính xác hơn
-            WebElement loginBtn = driver.findElement(By.xpath("//div[@id='signin']//button"));
-            clickElementJS(loginBtn);
-
-            // Wait thông minh: Chấp nhận cả URL có slash và không slash
-            String homeNoSlash = BASE_URL.substring(0, BASE_URL.length() - 1);
-
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlToBe(BASE_URL),
-                    ExpectedConditions.urlToBe(homeNoSlash),
-                    ExpectedConditions.urlContains("admin") // Cho trường hợp admin
-            ));
-
-        } catch (Exception e) {
-            System.out.println("⚠️ Warning Login: " + e.getMessage());
-            // Không throw exception để test vẫn cố chạy tiếp bước sau
-        }
-    }
-
-    // Hàm chụp ảnh màn hình (để test không báo lỗi biên dịch nếu các file con gọi nó)
-    protected void takeScreenshot(String fileName) {
-        // Logic chụp ảnh (bạn có thể copy lại từ file cũ nếu cần, hoặc để trống)
-        // com.java.automation.utils.ScreenshotHelper.capture(...);
     }
 }

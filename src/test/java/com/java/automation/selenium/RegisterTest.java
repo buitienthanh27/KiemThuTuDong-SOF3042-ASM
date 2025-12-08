@@ -13,6 +13,8 @@ import org.testng.annotations.Test;
 
 import java.time.Duration;
 
+import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
+
 @Listeners(TestListener.class)
 public class RegisterTest extends BaseSeleniumTest {
 

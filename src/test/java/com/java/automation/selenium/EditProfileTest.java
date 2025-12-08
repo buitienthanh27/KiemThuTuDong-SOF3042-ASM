@@ -15,11 +15,13 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.time.Duration;
 
+import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
+
 @Listeners(TestListener.class)
 public class EditProfileTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
-    private static final int TIMEOUT = 30; // Tăng timeout cho CI
+    private static final int TIMEOUT = 5; // Tăng timeout cho CI
 
     // Đường dẫn ảnh tĩnh để test upload (tránh tạo file rác)
     private static final String AVATAR_PATH = System.getProperty("user.dir") + File.separator + "src" + File.separator + "main" + File.separator + "resources" + File.separator + "static" + File.separator + "images" + File.separator + "product" + File.separator + "02.jpg";

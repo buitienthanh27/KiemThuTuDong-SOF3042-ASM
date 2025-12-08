@@ -1,7 +1,7 @@
 package com.java.automation.selenium;
 
-import com.java.automation.selenium.BaseSeleniumTest;
-import com.java.automation.selenium.TestListener;
+import com.java.automation.config.TestConfig;
+import com.java.automation.pages.LoginOrRegisterPage;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
@@ -15,95 +15,90 @@ import org.testng.annotations.Test;
 import java.time.Duration;
 import java.util.List;
 
+import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
+
 @Listeners(TestListener.class)
 public class CheckoutTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
-    private static final int TIMEOUT = 30; // Tăng timeout lên 30s cho chắc chắn
+    private LoginOrRegisterPage loginPage;
+    private static final int TIMEOUT = 10;
 
     @BeforeMethod
-    void setUp() {
+    public void setUp() {
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
+        // Khởi tạo Page Object để dùng chung logic Login chuẩn
+        loginPage = new LoginOrRegisterPage(driver);
     }
 
-    // --- HÀM CLICK JS ---
-    public void clickElementJS(WebElement element) {
-        try {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(500); // Chờ 1 chút sau khi scroll
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
-        } catch (Exception e) {
-            element.click();
-        }
-    }
+    // --- HÀM HỖ TRỢ ---
 
-    // --- 1. LOGIN ---
+    // Sử dụng hàm Login chuẩn từ Page Object thay vì tự viết lại
     private void ensureLoggedIn() {
-        driver.get(BASE_URL + "login");
-        try {
-            // Nếu không phải trang login (đã login rồi) thì return luôn
-            if (!driver.getCurrentUrl().contains("login")) return;
+        loginPage.navigateToLoginPage();
 
-            WebElement userField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
-            userField.clear();
-            userField.sendKeys("abcd");
+        // Nếu chưa ở trang login (tức là đã login rồi) thì thôi
+        if (!loginPage.isOnLoginPage()) {
+            return;
+        }
 
-            driver.findElement(By.name("password")).sendKeys("123123");
+        System.out.println("🔄 Đang thực hiện đăng nhập...");
 
-            WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
-            clickElementJS(loginBtn);
+        // Lấy user từ config hoặc dùng mặc định
+        String user = TestConfig.getProperty("test.username");
+        String pass = TestConfig.getProperty("test.password");
+        if (user == null) user = "abcd";
+        if (pass == null) pass = "123123";
 
-            // --- SỬA LỖI ĐỨNG IM: Chờ URL KHÔNG CÒN chứa 'login' nữa ---
-            wait.until(ExpectedConditions.not(ExpectedConditions.urlContains("login")));
+        loginPage.login(user, pass);
 
-            // Hoặc chờ URL chính xác là BASE_URL
-            wait.until(ExpectedConditions.urlToBe(BASE_URL));
-
-            System.out.println("✅ Đã Login xong, chuyển hướng thành công.");
-
-        } catch (Exception e) {
-            System.out.println("Login info (có thể đã login rồi): " + e.getMessage());
+        // Verify login thành công
+        if (!loginPage.isOnHomePage()) {
+            Assert.fail("Login thất bại: Không chuyển hướng về trang chủ sau khi đăng nhập.");
         }
     }
 
-    // --- 2. ĐẢM BẢO GIỎ HÀNG CÓ SẢN PHẨM ---
     private void ensureCartHasProduct() {
-        driver.get(BASE_URL + "carts");
+        driver.get(TestConfig.getBaseUrl() + "/carts");
         try {
-            // Chờ bảng load xong hoặc thông báo trống
+            // Chờ bảng load hoặc thông báo empty
             try {
-                wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("table")));
+                wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
             } catch (Exception ignored) {}
 
             List<WebElement> rows = driver.findElements(By.cssSelector("table.table-list tbody tr"));
 
             if (rows.isEmpty()) {
-                System.out.println("⚠️ Giỏ hàng rỗng! Đang tự động thêm sản phẩm...");
-                driver.get(BASE_URL + "products");
+                System.out.println("⚠️ Giỏ hàng rỗng! Đang đi thêm sản phẩm...");
+                driver.get(TestConfig.getBaseUrl() + "/products");
 
-                wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
-                List<WebElement> addButtons = driver.findElements(By.cssSelector(".product-btn a"));
+                // Thêm sản phẩm đầu tiên tìm thấy
+                WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
+                clickElementJS(addBtn);
 
-                if (!addButtons.isEmpty()) {
-                    clickElementJS(addButtons.get(0));
-                    // Chờ server xử lý thêm vào giỏ (quan trọng)
-                    Thread.sleep(2000);
-                }
+                // Chờ xíu để server xử lý
+                Thread.sleep(1500);
+
+                // Quay lại check
+                driver.get(TestConfig.getBaseUrl() + "/carts");
             }
         } catch (Exception e) {
-            System.out.println("Lỗi kiểm tra giỏ hàng: " + e.getMessage());
+            System.out.println("⚠️ Warning check giỏ hàng: " + e.getMessage());
         }
     }
 
-    // --- TEST CASE 1: CHECKOUT SUCCESS ---
+    // --- TEST CASES ---
+
     @Test(priority = 1)
     void test_checkout_process_success() {
         ensureLoggedIn();
         ensureCartHasProduct();
 
-        driver.get(BASE_URL + "checkout");
+        System.out.println("👉 Bắt đầu Checkout...");
+        driver.get(TestConfig.getBaseUrl() + "/checkout");
 
         try {
+            // 1. Điền thông tin người nhận
             WebElement nameInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("receiver")));
             nameInput.clear();
             nameInput.sendKeys("Test User Selenium");
@@ -112,90 +107,82 @@ public class CheckoutTest extends BaseSeleniumTest {
             driver.findElement(By.name("phone")).sendKeys("0987654321");
             driver.findElement(By.name("description")).sendKeys("Giao hàng giờ hành chính");
 
-            // --- SỬA LỖI CLICK PLACE ORDER ---
-            // Tìm nút Place Order
-            WebElement placeOrderBtn = driver.findElement(By.xpath("//button[contains(., 'Place order')]"));
+            // 2. Click Place Order
+            // Dùng XPath chứa text để tìm nút (chấp nhận cả tiếng Anh và Việt)
+            WebElement placeOrderBtn = driver.findElement(By.xpath("//button[contains(., 'Place order') or contains(., 'Đặt hàng')]"));
 
-            // Scroll xuống cho chắc chắn nhìn thấy
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", placeOrderBtn);
-            Thread.sleep(1000); // Chờ scroll xong
+            // Scroll kỹ để tránh footer che nút
+            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", placeOrderBtn);
+            Thread.sleep(1000);
 
-            // Click
             clickElementJS(placeOrderBtn);
 
-            // Chờ kết quả (Success hoặc thông báo)
-            // Tăng thời gian chờ xử lý đơn hàng
+            // 3. Verify Thành công
+            // Chờ URL đổi sang trang success HOẶC hiện thông báo cảm ơn
             wait.until(ExpectedConditions.or(
                     ExpectedConditions.urlContains("success"),
                     ExpectedConditions.visibilityOfElementLocated(By.xpath("//*[contains(text(), 'Thank you') or contains(text(), 'Cảm ơn')]"))
             ));
 
-            boolean isSuccess = driver.getPageSource().contains("Thank you") || driver.getCurrentUrl().contains("success");
-            Assert.assertTrue(isSuccess, "Thất bại: Không thấy thông báo 'Thank you'!");
+            boolean isSuccess = driver.getCurrentUrl().contains("success") ||
+                    driver.getPageSource().contains("Thank you") ||
+                    driver.getPageSource().contains("Cảm ơn");
 
+            Assert.assertTrue(isSuccess, "Checkout thất bại: Không thấy thông báo thành công!");
+
+            // Log ID đơn hàng nếu lấy được
             try {
-                // Thử lấy Order ID nếu có
-                String orderId = driver.findElement(By.xpath("//h5/span")).getText();
-                System.out.println("🎉 ORDER SUCCESS! ID: " + orderId);
+                WebElement orderId = driver.findElement(By.xpath("//h5/span | //strong[contains(text(), '#')]"));
+                System.out.println("🎉 ORDER SUCCESS! Mã đơn: " + orderId.getText());
             } catch (Exception ignored) {}
 
-            // Chụp ảnh thành công
-            takeScreenshot("Checkout_Success");
-
         } catch (Exception e) {
-            takeScreenshot("Checkout_Fail");
-            Assert.fail("Lỗi Checkout: " + e.getMessage());
+            takeScreenshot("Checkout_Success_Fail"); // Dùng hàm chụp ảnh của BaseSeleniumTest
+            Assert.fail("Lỗi quá trình Checkout: " + e.getMessage());
         }
     }
 
-    // --- TEST CASE 2: CHECKOUT FAIL (MISSING ADDRESS) ---
     @Test(priority = 2)
     void test_checkout_fail_missing_address() {
         ensureLoggedIn();
         ensureCartHasProduct();
 
-        driver.get(BASE_URL + "checkout");
+        driver.get(TestConfig.getBaseUrl() + "/checkout");
 
         try {
-            System.out.println("Test 2: Thử thanh toán thiếu Address...");
+            System.out.println("👉 Test Checkout thiếu địa chỉ...");
 
             WebElement nameInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("receiver")));
             nameInput.clear();
-            nameInput.sendKeys("User Test Fail");
+            nameInput.sendKeys("User Missing Address");
             driver.findElement(By.name("phone")).sendKeys("0123456789");
 
-            // CỐ TÌNH ĐỂ TRỐNG ADDRESS (Xóa đi nếu có sẵn)
-            driver.findElement(By.name("address")).clear();
-
-            WebElement placeOrderBtn = driver.findElement(By.xpath("//button[contains(., 'Place order')]"));
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", placeOrderBtn);
-            Thread.sleep(500);
-
-            // Click Place Order
-            placeOrderBtn.click();
-
-            Thread.sleep(1500); // Chờ validation chạy
-
-            // Scroll lên để chụp ảnh lỗi
+            // Xóa địa chỉ để gây lỗi
             WebElement addressInput = driver.findElement(By.name("address"));
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", addressInput);
-            Thread.sleep(500);
+            addressInput.clear();
 
-            // Kiểm tra: Nếu vẫn ở trang checkout -> Pass (Hệ thống chặn thành công)
+            WebElement placeOrderBtn = driver.findElement(By.xpath("//button[contains(., 'Place order') or contains(., 'Đặt hàng')]"));
+            clickElementJS(placeOrderBtn);
+
+            // Chờ 1 chút xem có chuyển trang không
+            Thread.sleep(2000);
+
+            // Verify: Vẫn phải ở lại trang checkout
             String currentUrl = driver.getCurrentUrl();
             boolean stayedOnPage = currentUrl.contains("checkout") && !currentUrl.contains("success");
 
+            // Có thể check thêm HTML5 validation message nếu cần
+            // String validationMsg = addressInput.getAttribute("validationMessage");
+
             if (stayedOnPage) {
-                System.out.println("Pass: Hệ thống chặn thành công.");
-                takeScreenshot("Checkout_MissingAddress_Blocked");
+                System.out.println("✅ Pass: Hệ thống đã chặn checkout khi thiếu địa chỉ.");
             } else {
-                takeScreenshot("Checkout_MissingAddress_FAIL");
-                Assert.fail("Lỗi: Hệ thống không chặn khi thiếu Address! Đã chuyển sang trang: " + currentUrl);
+                takeScreenshot("Checkout_MissingInfo_Fail");
+                Assert.fail("Lỗi: Hệ thống cho phép checkout khi thiếu địa chỉ! URL hiện tại: " + currentUrl);
             }
 
         } catch (Exception e) {
-            takeScreenshot("Checkout_MissingAddress_Error");
-            Assert.fail("Lỗi Test: " + e.getMessage());
+            Assert.fail("Lỗi test case thiếu thông tin: " + e.getMessage());
         }
     }
 }

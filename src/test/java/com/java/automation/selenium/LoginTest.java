@@ -6,6 +6,8 @@ import org.testng.Assert;
 import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
+import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
+
 @Listeners(TestListener.class)
 public class LoginTest extends BaseSeleniumTest {
 

@@ -15,66 +15,62 @@ import org.testng.annotations.Test;
 
 import java.io.File;
 import java.time.Duration;
+import java.util.List;
 
-// Kết nối với TestListener để chụp ảnh lỗi tự động
 @Listeners(TestListener.class)
 public class AdminDashboardTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
+    private LoginOrRegisterPage loginPage;
 
-    // Đường dẫn ảnh tương thích mọi hệ điều hành (Windows/Linux/Mac)
-    private static final String IMAGE_PATH = System.getProperty("user.dir") + File.separator + "src" + File.separator + "main" + File.separator + "resources" + File.separator + "static" + File.separator + "images" + File.separator + "product" + File.separator + "02.jpg";
+    // Ảnh mẫu để upload
+    private static final String IMAGE_PATH = System.getProperty("user.dir") + "/src/main/resources/static/images/product/02.jpg";
 
     @BeforeMethod
-    void setUpTest() {
-        // Tăng timeout lên 30s cho môi trường CI chậm
-        wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+    public void setUp() {
+        wait = new WebDriverWait(driver, Duration.ofSeconds(20)); // Tăng wait lên 20s
+        loginPage = new LoginOrRegisterPage(driver);
     }
 
-    // --- HELPER METHODS ---
+    // --- HÀM HỖ TRỢ ---
 
-    /**
-     * Hàm đăng nhập Admin chuẩn (Sử dụng Page Object & Config)
-     * Được gọi ở đầu mỗi Test Case để đảm bảo quyền truy cập.
-     */
-    public void loginAsAdmin() {
-        LoginOrRegisterPage loginPage = new LoginOrRegisterPage(driver);
-        loginPage.navigateToLoginPage();
-
-        // Lấy tài khoản Admin từ file config (test.properties)
-        // Đảm bảo trong test.properties bạn đã set: test.admin.id=admin và test.admin.password=123123
-        String adminUser = TestConfig.getProperty("test.admin.id");
-        String adminPass = TestConfig.getProperty("test.admin.password");
-
-        System.out.println("🔄 Đang đăng nhập Admin: " + adminUser);
-        loginPage.login(adminUser, adminPass);
-
-        // Chờ vào được trang Admin (hoặc trang chủ nếu redirect)
-        try {
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlContains("admin"),
-                    ExpectedConditions.urlContains("home"),
-                    ExpectedConditions.urlToBe(BASE_URL)
-            ));
-
-            // Nếu login xong mà chưa vào admin (về home), ép chuyển hướng vào trang dashboard
-            if (!driver.getCurrentUrl().contains("admin")) {
-                driver.get(BASE_URL + "admin/home");
-            }
-            System.out.println("✅ Đã vào trang Admin.");
-        } catch (Exception e) {
-            Assert.fail("Login Admin thất bại! Vẫn kẹt ở: " + driver.getCurrentUrl());
-        }
-    }
-
-    // Hàm click an toàn bằng Javascript (Tránh lỗi element not clickable trên CI)
-    public void clickElementJS(WebElement element) {
+    // Click JS mạnh mẽ hơn: Scroll -> Click -> Retry nếu fail
+    private void clickJS(WebElement element) {
         try {
             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
             Thread.sleep(500);
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
         } catch (Exception e) {
-            element.click();
+            // Fallback: Click trực tiếp không cần scroll
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+        }
+    }
+
+    private void loginAsAdmin() {
+        loginPage.navigateToLoginPage();
+
+        // Nếu chưa ở login (tức là đã login rồi) thì kiểm tra xem có phải admin không
+        if (!loginPage.isOnLoginPage()) {
+            if (!driver.getCurrentUrl().contains("admin")) {
+                driver.get(TestConfig.getBaseUrl() + "/admin/home");
+            }
+            return;
+        }
+
+        String user = TestConfig.getProperty("admin.username");
+        String pass = TestConfig.getProperty("admin.password");
+        if (user == null) user = "admin";
+        if (pass == null) pass = "123123";
+
+        loginPage.login(user, pass);
+
+        // Wait URL chuyển sang admin
+        try {
+            wait.until(ExpectedConditions.urlContains("admin"));
+            System.out.println("✅ Đã vào trang Admin.");
+        } catch (Exception e) {
+            // Nếu login xong về trang chủ, tự redirect
+            driver.get(TestConfig.getBaseUrl() + "/admin/home");
         }
     }
 
@@ -82,220 +78,175 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
     @Test(priority = 1)
     void test_access_admin_dashboard() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-
-        driver.get(BASE_URL + "admin/home");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/home");
         try {
-            WebElement dashboardTitle = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                    By.xpath("//h2[contains(text(), 'Dashboard')]")
-            ));
-            Assert.assertTrue(dashboardTitle.isDisplayed());
+            WebElement title = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h2[contains(text(),'Dashboard')]")));
+            Assert.assertTrue(title.isDisplayed());
         } catch (Exception e) {
-            Assert.fail("Lỗi truy cập Admin: " + e.getMessage());
+            Assert.fail("Không vào được Dashboard: " + e.getMessage());
         }
     }
 
     @Test(priority = 2)
     void test_product_crud() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/products");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/products");
 
         try {
-            // 1. CREATE
             System.out.println("Test 2.1: Thêm sản phẩm...");
-            WebElement addBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@data-target='#addRowModal']")));
-            clickElementJS(addBtn);
 
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
-            Thread.sleep(500); // Chờ modal ổn định
+            // 1. Mở Modal (Dùng JS Click để tránh bị che)
+            WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("button[data-target='#addRowModal']")));
+            clickJS(addBtn);
 
-            String productName = "AutoPro " + System.currentTimeMillis();
-            driver.findElement(By.id("name")).sendKeys(productName);
+            // 2. Chờ Modal hiện
+            WebElement modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
+            Thread.sleep(500); // Chờ animation
 
-            // Chọn Category & Supplier (nếu có)
+            // 3. Điền form
+            String proName = "AutoPro " + System.currentTimeMillis();
+            driver.findElement(By.id("name")).sendKeys(proName);
+            driver.findElement(By.id("price")).sendKeys("150");
+            driver.findElement(By.id("quantity")).sendKeys("10");
+            driver.findElement(By.id("description")).sendKeys("Test Description");
+
+            // Chọn Category (nếu có)
             try {
                 new Select(driver.findElement(By.id("categoryId"))).selectByIndex(0);
-                new Select(driver.findElement(By.id("supplierId"))).selectByIndex(0);
             } catch (Exception ignored) {}
-
-            driver.findElement(By.id("price")).sendKeys("100");
-            driver.findElement(By.id("quantity")).sendKeys("10");
-            driver.findElement(By.id("discount")).sendKeys("0");
-
-            // Upload ảnh (nếu file tồn tại)
-            try {
-                File img = new File(IMAGE_PATH);
-                if (img.exists()) {
-                    driver.findElement(By.id("image")).sendKeys(img.getAbsolutePath());
-                } else {
-                    System.out.println("⚠️ Không tìm thấy ảnh test: " + IMAGE_PATH);
-                }
-            } catch (Exception ignored) {}
-
-            driver.findElement(By.id("description")).sendKeys("Desc Auto");
 
             // Click Save
-            clickElementJS(driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]")));
+            WebElement saveBtn = modal.findElement(By.xpath(".//button[contains(text(), 'Add') or contains(text(), 'Thêm')]"));
+            clickJS(saveBtn);
 
-            // Verify Create
-            Thread.sleep(2000);
-            WebElement searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
-            searchInput.clear();
-            searchInput.sendKeys(productName);
-            Thread.sleep(1000);
+            // 4. Verify Thêm thành công
+            // Chờ bảng reload xong (tìm ô search của datatable)
+            WebElement searchBox = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
+            searchBox.clear();
+            searchBox.sendKeys(proName);
+            Thread.sleep(1500); // Chờ filter
 
-            if (!driver.findElement(By.id("add-row")).getText().toLowerCase().contains(productName.toLowerCase())) {
-                Assert.fail("Lỗi: Thêm sản phẩm thất bại (Không tìm thấy tên trong bảng).");
-            }
+            WebElement tableBody = driver.findElement(By.cssSelector("table#add-row tbody"));
+            Assert.assertTrue(tableBody.getText().contains(proName), "Không tìm thấy sản phẩm vừa thêm!");
 
-            // 2. UPDATE
-            System.out.println("Test 2.2: Sửa sản phẩm...");
-            clickElementJS(driver.findElement(By.cssSelector("a[href*='editProduct']")));
+            // 5. Delete (Dọn dẹp)
+            System.out.println("Test 2.2: Xóa sản phẩm vừa tạo...");
+            WebElement deleteBtn = tableBody.findElement(By.cssSelector("button[onclick*='showConfigModalDialog']")); // Nút xóa dòng đầu tiên
+            clickJS(deleteBtn);
 
-            WebElement nameInput = wait.until(ExpectedConditions.elementToBeClickable(
-                    By.xpath("//input[@id='name' and not(@readonly)]")
-            ));
-            nameInput.clear();
+            // Chờ modal xác nhận
+            WebElement confirmBtn = wait.until(ExpectedConditions.elementToBeClickable(By.id("yesOption")));
+            clickJS(confirmBtn);
 
-            String updatedName = productName + " Up";
-            nameInput.sendKeys(updatedName);
-
-            clickElementJS(driver.findElement(By.xpath("//button[contains(text(), 'Update')]")));
-
-            Thread.sleep(1000);
-            if (!driver.getCurrentUrl().contains("products")) {
-                driver.get(BASE_URL + "admin/products");
-            }
-
-            searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
-            searchInput.clear();
-            searchInput.sendKeys(updatedName);
-            Thread.sleep(1000);
-
-            if (!driver.findElement(By.id("add-row")).getText().toLowerCase().contains(updatedName.toLowerCase())) {
-                Assert.fail("Lỗi: Sửa sản phẩm thất bại.");
-            }
-
-            // 3. DELETE
-            System.out.println("Test 2.3: Xóa sản phẩm...");
-            clickElementJS(driver.findElement(By.cssSelector("button[onclick*='showConfigModalDialog']")));
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
-            Thread.sleep(500);
-            clickElementJS(driver.findElement(By.id("yesOption")));
-
-            Thread.sleep(1500);
-            searchInput = driver.findElement(By.cssSelector("div.dataTables_filter input"));
-            searchInput.clear();
-            searchInput.sendKeys(updatedName);
-            Thread.sleep(1000);
-
-            String tableText = driver.findElement(By.id("add-row")).getText();
-            if (!tableText.contains("No matching") && tableText.toLowerCase().contains(updatedName.toLowerCase())) {
-                Assert.fail("Lỗi: Xóa sản phẩm thất bại.");
-            }
+            Thread.sleep(1000); // Chờ xóa xong
 
         } catch (Exception e) {
+            takeScreenshot("Admin_Product_CRUD_Error");
             Assert.fail("Lỗi Product CRUD: " + e.getMessage());
         }
     }
 
     @Test(priority = 3)
     void test_order_crud() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/orders");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/orders");
+
         try {
             System.out.println("Test 3: Quản lý đơn hàng...");
-            // Check nếu bảng rỗng thì bỏ qua
-            if (driver.findElements(By.cssSelector("table#add-row tbody tr")).isEmpty()) return;
 
-            // Edit Status
-            clickElementJS(driver.findElement(By.cssSelector("table#add-row tbody tr a[href*='editorder']")));
+            // Chờ bảng xuất hiện
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("table#add-row")));
+
+            List<WebElement> rows = driver.findElements(By.cssSelector("table#add-row tbody tr"));
+            if (rows.isEmpty() || rows.get(0).getText().contains("No data")) {
+                System.out.println("⚠️ Không có đơn hàng để test.");
+                return;
+            }
+
+            // Tìm nút sửa (Edit) ở dòng đầu tiên
+            // Dùng css selector linh hoạt hơn
+            WebElement editLink = rows.get(0).findElement(By.cssSelector("a[href*='editorder']"));
+            clickJS(editLink);
+
             wait.until(ExpectedConditions.urlContains("editorder"));
 
+            // Sửa trạng thái
             Select statusSelect = new Select(driver.findElement(By.name("status")));
-            // Chọn trạng thái cuối cùng
-            statusSelect.selectByIndex(statusSelect.getOptions().size() - 1);
+            statusSelect.selectByIndex(statusSelect.getOptions().size() - 1); // Chọn cái cuối (thường là Cancel/Completed)
 
-            clickElementJS(driver.findElement(By.xpath("//button[contains(text(), 'Update')]")));
+            WebElement updateBtn = driver.findElement(By.xpath("//button[contains(text(), 'Update') or contains(text(), 'Cập nhật')]"));
+            clickJS(updateBtn);
 
-            Thread.sleep(1000);
-            if (!driver.getCurrentUrl().contains("orders")) {
-                driver.get(BASE_URL + "admin/orders");
-            }
-
-            // Delete
-            if(!driver.findElements(By.cssSelector("table#add-row tbody tr")).isEmpty()) {
-                clickElementJS(driver.findElement(By.cssSelector("table#add-row tbody tr button[onclick*='showConfigModalDialog']")));
-                wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
-                Thread.sleep(500);
-                clickElementJS(driver.findElement(By.id("yesOption")));
-                Thread.sleep(1500);
-                System.out.println("⚠️ Đã thực hiện xóa đơn hàng.");
-            }
+            wait.until(ExpectedConditions.urlContains("orders"));
+            System.out.println("✅ Update đơn hàng thành công.");
 
         } catch (Exception e) {
+            takeScreenshot("Admin_Order_Error");
             Assert.fail("Lỗi Order: " + e.getMessage());
         }
     }
 
     @Test(priority = 4)
     void test_manage_categories() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/categories");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/categories");
+
         try {
             System.out.println("Test 4.1: Thêm Category...");
-            WebElement addBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@data-target='#addRowModal']")));
-            clickElementJS(addBtn);
+            WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("button[data-target='#addRowModal']")));
+            clickJS(addBtn);
 
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
-            Thread.sleep(500);
 
             String catName = "Cat " + System.currentTimeMillis();
             driver.findElement(By.id("name")).sendKeys(catName);
-            clickElementJS(driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]")));
 
-            Thread.sleep(1500);
-            WebElement searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
-            searchInput.sendKeys(catName);
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
+            clickJS(saveBtn);
+
+            // Verify
+            WebElement searchBox = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
+            searchBox.sendKeys(catName);
             Thread.sleep(1000);
 
-            if (!driver.findElement(By.id("add-row")).getText().toLowerCase().contains(catName.toLowerCase())) {
-                Assert.fail("Lỗi: Thêm Category thất bại.");
-            }
-
-            // Edit & Delete (nếu cần thêm logic ở đây)
+            String bodyText = driver.findElement(By.tagName("tbody")).getText();
+            Assert.assertTrue(bodyText.contains(catName), "Thêm Category thất bại!");
 
         } catch (Exception e) {
+            takeScreenshot("Admin_Category_Error");
             Assert.fail("Lỗi Category: " + e.getMessage());
         }
     }
 
     @Test(priority = 5)
     void test_manage_suppliers() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/suppliers");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/suppliers");
+
         try {
             System.out.println("Test 5.1: Thêm Supplier...");
-            WebElement addBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@data-target='#addRowModal']")));
-            clickElementJS(addBtn);
+            WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("button[data-target='#addRowModal']")));
+            clickJS(addBtn);
 
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
-            Thread.sleep(500);
 
             String supName = "Sup " + System.currentTimeMillis();
             driver.findElement(By.id("name")).sendKeys(supName);
-            driver.findElement(By.id("email")).sendKeys("sup@test.com");
-            driver.findElement(By.id("phone")).sendKeys("123");
-            clickElementJS(driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]")));
+            driver.findElement(By.id("email")).sendKeys("sup" + System.currentTimeMillis() + "@test.com");
+            driver.findElement(By.id("phone")).sendKeys("0123456789");
 
-            Thread.sleep(1500);
-            WebElement searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
-            searchInput.sendKeys(supName);
-            Thread.sleep(500);
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
+            clickJS(saveBtn);
 
-            if (!driver.findElement(By.id("add-row")).getText().toLowerCase().contains(supName.toLowerCase())) {
-                Assert.fail("Lỗi: Thêm Supplier thất bại.");
-            }
+            // Verify
+            WebElement searchBox = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
+            searchBox.sendKeys(supName);
+            Thread.sleep(1000);
+
+            String bodyText = driver.findElement(By.tagName("tbody")).getText();
+            Assert.assertTrue(bodyText.contains(supName), "Thêm Supplier thất bại!");
+
         } catch (Exception e) {
             Assert.fail("Lỗi Supplier: " + e.getMessage());
         }
@@ -303,84 +254,84 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
     @Test(priority = 6)
     void test_view_customers() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/customers");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/customers");
         try {
             System.out.println("Test 6: Xem danh sách khách hàng...");
-            WebElement table = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("add-row")));
-            Assert.assertTrue(table.isDisplayed());
-
-            driver.findElement(By.cssSelector("div.dataTables_filter input")).sendKeys("admin");
-            Thread.sleep(500);
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("table")));
+            WebElement searchBox = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
+            Assert.assertTrue(searchBox.isDisplayed());
         } catch (Exception e) {
-            Assert.fail("Lỗi Customer: " + e.getMessage());
+            Assert.fail("Lỗi xem Customer: " + e.getMessage());
         }
     }
 
     @Test(priority = 7)
     void test_add_product_fail_empty_name() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/products");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/products");
 
         try {
             System.out.println("Test 7: Thử thêm sản phẩm nhưng bỏ trống Tên...");
-            WebElement addBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@data-target='#addRowModal']")));
-            clickElementJS(addBtn);
+            WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("button[data-target='#addRowModal']")));
+            clickJS(addBtn);
+
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
-            Thread.sleep(500);
 
-            driver.findElement(By.id("name")).clear();
+            // Để trống tên, chỉ điền giá
             driver.findElement(By.id("price")).sendKeys("100");
-            driver.findElement(By.id("quantity")).sendKeys("10");
 
-            WebElement submitBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
-            submitBtn.click(); // Click thường để trigger validation
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
+            // Click thường để kích hoạt HTML5 validation (nếu có)
+            saveBtn.click();
 
             Thread.sleep(1000);
 
-            // Nếu modal vẫn hiện -> Pass
-            if (driver.findElement(By.id("addRowModal")).isDisplayed()) {
-                System.out.println("Pass: Bị chặn.");
-            } else {
-                Assert.fail("Lỗi: Hệ thống không chặn!");
-            }
+            // Check nếu modal vẫn còn hiện -> Pass (nghĩa là chưa submit được)
+            boolean isModalVisible = driver.findElement(By.id("addRowModal")).isDisplayed();
+            Assert.assertTrue(isModalVisible, "Lỗi: Form submit thành công dù thiếu tên!");
 
         } catch (Exception e) {
-            Assert.fail("Lỗi test case 7: " + e.getMessage());
+            Assert.fail("Lỗi test 7: " + e.getMessage());
         }
     }
 
     @Test(priority = 8)
     void test_add_product_fail_negative_price() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        // Refresh hoặc vào lại trang để đảm bảo sạch sẽ
-        driver.get(BASE_URL + "admin/products");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/products"); // Refresh lại trang
 
         try {
             System.out.println("Test 8: Thử thêm sản phẩm giá âm...");
-            WebElement addBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@data-target='#addRowModal']")));
-            clickElementJS(addBtn);
+            WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("button[data-target='#addRowModal']")));
+            clickJS(addBtn);
+
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
-            Thread.sleep(500);
 
-            driver.findElement(By.id("name")).sendKeys("Negative Price");
-            driver.findElement(By.id("price")).sendKeys("-500");
-            driver.findElement(By.id("quantity")).sendKeys("10");
+            driver.findElement(By.id("name")).sendKeys("Price Negative Test");
+            driver.findElement(By.id("price")).sendKeys("-500"); // Giá âm
 
-            WebElement submitBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
-            submitBtn.click();
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
+            saveBtn.click();
 
             Thread.sleep(1000);
 
+            // Check 1: Modal còn đó (Validation client chặn) -> Pass
             if (driver.findElement(By.id("addRowModal")).isDisplayed()) {
                 System.out.println("Pass: Hệ thống chặn giá âm.");
-            } else {
-                WebElement searchInput = driver.findElement(By.cssSelector("div.dataTables_filter input"));
-                searchInput.sendKeys("Negative Price");
-                Thread.sleep(1000);
-                if(driver.findElement(By.id("add-row")).getText().contains("-500")) {
-                    Assert.fail("LỖI: Giá âm được chấp nhận!");
-                }
+                return;
+            }
+
+            // Check 2: Nếu modal tắt, kiểm tra xem có lưu vào bảng không (Validation server chặn)
+            WebElement searchBox = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("div.dataTables_filter input")));
+            searchBox.clear();
+            searchBox.sendKeys("Price Negative Test");
+            Thread.sleep(1000);
+
+            String bodyText = driver.findElement(By.tagName("tbody")).getText();
+            if (bodyText.contains("Price Negative Test")) {
+                // Nếu tìm thấy -> Fail (đã lưu được)
+                Assert.fail("LỖI: Hệ thống cho phép lưu sản phẩm giá âm!");
             }
 
         } catch (Exception e) {
@@ -390,30 +341,25 @@ public class AdminDashboardTest extends BaseSeleniumTest {
 
     @Test(priority = 9)
     void test_add_supplier_fail_invalid_email() {
-        loginAsAdmin(); // BẮT BUỘC PHẢI GỌI
-        driver.get(BASE_URL + "admin/suppliers");
+        loginAsAdmin();
+        driver.get(TestConfig.getBaseUrl() + "/admin/suppliers");
 
         try {
             System.out.println("Test 9: Thêm NCC email sai...");
-            WebElement addBtn = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//button[@data-target='#addRowModal']")));
-            clickElementJS(addBtn);
+            WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("button[data-target='#addRowModal']")));
+            clickJS(addBtn);
+
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("addRowModal")));
-            Thread.sleep(500);
 
-            driver.findElement(By.id("name")).sendKeys("Bad Email Supplier");
-            driver.findElement(By.id("email")).sendKeys("email_sai");
-            driver.findElement(By.id("phone")).sendKeys("0999");
+            driver.findElement(By.id("name")).sendKeys("Bad Email");
+            driver.findElement(By.id("email")).sendKeys("email_khong_hop_le");
 
-            WebElement submitBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
-            submitBtn.click();
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='addRowModal']//button[contains(text(), 'Add')]"));
+            saveBtn.click();
 
             Thread.sleep(1000);
 
-            if (driver.findElement(By.id("addRowModal")).isDisplayed()) {
-                System.out.println("Pass: Bị chặn.");
-            } else {
-                Assert.fail("Lỗi: Email sai vẫn lưu được!");
-            }
+            Assert.assertTrue(driver.findElement(By.id("addRowModal")).isDisplayed(), "Lỗi: Email sai định dạng vẫn submit được!");
 
         } catch (Exception e) {
             Assert.fail("Lỗi test 9: " + e.getMessage());

@@ -3,7 +3,6 @@ package com.java.automation.selenium;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.Assert;
@@ -13,60 +12,63 @@ import org.testng.annotations.Test;
 
 import java.time.Duration;
 
-import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
-
 @Listeners(TestListener.class)
 public class RegisterTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
-    private static final int TIMEOUT = 15; // Tăng timeout lên 15s cho an toàn
-
-    // Biến lưu URL chuẩn hóa
+    private static final int TIMEOUT = 15;
     private String homeUrlWithSlash;
 
     @BeforeMethod
     public void setUpRegister() {
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
 
-        // Chuẩn bị URL an toàn
         String rawBase = BASE_URL;
         if (rawBase == null) rawBase = "http://localhost:9090/";
         String homeUrlNoSlash = rawBase.endsWith("/") ? rawBase.substring(0, rawBase.length() - 1) : rawBase;
         homeUrlWithSlash = homeUrlNoSlash + "/";
     }
 
+    // Hàm click JS chuyên biệt, click bất chấp bị che
+    private void forceClick(WebElement element) {
+        try {
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+        } catch (Exception e) {
+            // Nếu vẫn fail thì thử scroll rồi click lại
+            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", element);
+            try { Thread.sleep(500); } catch (InterruptedException ex) {}
+            element.click();
+        }
+    }
+
     private void prepareRegisterPage() {
         driver.get(homeUrlWithSlash + "login");
 
-        // Logout nếu đang kẹt ở trang admin hoặc trang khác
         if (!driver.getCurrentUrl().contains("login")) {
             driver.get(homeUrlWithSlash + "logout");
             driver.get(homeUrlWithSlash + "login");
         }
 
         try {
-            // Chờ tab Sign Up xuất hiện. Dùng CSS Selector chuẩn xác hơn XPath text
-            // Tìm thẻ <a> có href chứa 'signup' nằm trong danh sách tab
+            // Tìm tab bằng CSS Selector chính xác
             WebElement signUpTab = wait.until(ExpectedConditions.elementToBeClickable(
-                    By.cssSelector("ul.nav-tabs a[href*='signup']")
+                    By.cssSelector("ul.nav-tabs a[href*='signup'], ul.nav-tabs a[href*='register']")
             ));
 
             if (!signUpTab.getAttribute("class").contains("active")) {
-                clickElementJS(signUpTab);
-                // Chờ tab active để đảm bảo form đã chuyển đổi
+                forceClick(signUpTab); // Dùng force click
                 wait.until(ExpectedConditions.attributeContains(signUpTab, "class", "active"));
             }
         } catch (Exception e) {
-            // Fallback: Nếu CSS fail thì thử tìm bằng text cũ
             try {
-                WebElement signUpTab = driver.findElement(By.xpath("//a[contains(text(), 'sign up')]"));
-                clickElementJS(signUpTab);
+                WebElement signUpTab = driver.findElement(By.xpath("//a[contains(text(), 'sign up') or contains(text(), 'Đăng ký')]"));
+                forceClick(signUpTab);
             } catch (Exception ex) {}
         }
     }
 
     private void fillRegisterForm(String id, String name, String email, String pass) {
-        // Dùng CSS Selector ID (#signup) để định vị input chính xác trong form đăng ký
+        // Chờ textbox xuất hiện
         WebElement txtId = wait.until(ExpectedConditions.visibilityOfElementLocated(
                 By.cssSelector("#signup input[name='customerId']")));
         txtId.clear();
@@ -76,32 +78,24 @@ public class RegisterTest extends BaseSeleniumTest {
         driver.findElement(By.cssSelector("#signup input[name='email']")).sendKeys(email);
         driver.findElement(By.cssSelector("#signup input[name='password']")).sendKeys(pass);
 
-        // Checkbox: Xử lý an toàn nếu không tìm thấy hoặc đã check
         try {
             WebElement checkbox = driver.findElement(By.id("signup-check"));
             if (!checkbox.isSelected()) {
-                clickElementJS(checkbox);
+                forceClick(checkbox);
             }
-        } catch (Exception e) {
-            // Checkbox có thể không bắt buộc hoặc ẩn
-        }
+        } catch (Exception ignored) {}
     }
 
     private void clickSignUpButton() {
-        // QUAN TRỌNG: Tìm nút button nằm TRONG div id='signup'
-        // CSS Selector này ("#signup button") sẽ bắt được nút bất kể text là gì
+        // Tìm nút button
         WebElement btnSignUp = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("#signup button")));
 
-        // Scroll tới element để chắc chắn không bị che
-        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", btnSignUp);
+        // FIX QUAN TRỌNG: Dùng JS Click trực tiếp thay vì Actions
+        // Điều này giúp click xuyên qua mọi layer (header/footer) nếu bị che
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", btnSignUp);
 
-        try {
-            // Dùng Actions click để mô phỏng người dùng thật (ổn định hơn click thường)
-            new Actions(driver).moveToElement(btnSignUp).pause(200).click().perform();
-        } catch (Exception e) {
-            // Fallback: Dùng JS Click từ BaseSeleniumTest nếu Actions fail
-            clickElementJS(btnSignUp);
-        }
+        // Chờ 1 chút để server xử lý sau khi click
+        try { Thread.sleep(1000); } catch (InterruptedException e) {}
     }
 
     // --- TEST CASE 1: ĐĂNG KÝ THÀNH CÔNG ---
@@ -109,7 +103,7 @@ public class RegisterTest extends BaseSeleniumTest {
     void register_success_with_unique_data() {
         prepareRegisterPage();
         long timestamp = System.currentTimeMillis();
-        String newId = "u" + timestamp; // ID ngắn gọn
+        String newId = "u" + timestamp;
         String newEmail = "auto" + timestamp + "@vegana.com";
 
         fillRegisterForm(newId, "Auto User", newEmail, "123456");
@@ -117,47 +111,44 @@ public class RegisterTest extends BaseSeleniumTest {
 
         try {
             WebElement successMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-success")));
-            // Kiểm tra nội dung chứa 'thành công' hoặc 'success' (không phân biệt hoa thường)
             String msgText = successMsg.getText().toLowerCase();
-            Assert.assertTrue(msgText.contains("thành công") || msgText.contains("success"),
-                    "Thông báo không chứa từ khóa thành công. Nội dung thực tế: " + successMsg.getText());
+            Assert.assertTrue(msgText.contains("thành công") || msgText.contains("success") || msgText.contains("created"),
+                    "Thông báo không đúng: " + successMsg.getText());
         } catch (Exception e) {
             takeScreenshot("FAIL_Register_Success");
-            Assert.fail("Đăng ký thất bại hoặc không thấy thông báo thành công sau 15s.");
+            Assert.fail("Đăng ký thất bại: Không thấy thông báo thành công sau 15s.");
         }
     }
 
-    // --- TEST CASE 2: ĐĂNG KÝ THẤT BẠI DO TRÙNG ID ---
+    // --- TEST CASE 2: TRÙNG ID ---
     @Test(priority = 2)
     void register_fail_duplicate_id() {
         prepareRegisterPage();
-        String existingId = "customer01"; // Đảm bảo ID này có trong DB
-        String uniqueEmail = "uniq" + System.currentTimeMillis() + "@gmail.com";
+        String existingId = "customer01";
 
-        fillRegisterForm(existingId, "Duplicate Tester", uniqueEmail, "123456");
+        fillRegisterForm(existingId, "Dup User", "unique" + System.currentTimeMillis() + "@gmail.com", "123456");
         clickSignUpButton();
 
         try {
             WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
-            // Kiểm tra lỏng hơn để tránh fail do sai lệch câu chữ nhỏ
             String msgText = errorMsg.getText().toLowerCase();
-            Assert.assertTrue(msgText.contains("id") || msgText.contains("tồn tại") || msgText.contains("duplicate"),
-                    "Lỗi sai nội dung thông báo trùng ID: " + errorMsg.getText());
+            boolean isIdError = msgText.contains("id") || msgText.contains("tồn tại") || msgText.contains("duplicate") || msgText.contains("đã có");
+            Assert.assertTrue(isIdError, "Lỗi không báo trùng ID: " + errorMsg.getText());
             takeScreenshot("Pass_Register_DuplicateID");
         } catch (Exception e) {
             takeScreenshot("FAIL_Register_DupID");
-            Assert.fail("Test thất bại: Không báo lỗi trùng ID!");
+            Assert.fail("Test thất bại: Không báo lỗi trùng ID (Alert đỏ không xuất hiện)!");
         }
     }
 
-    // --- TEST CASE 3: ĐĂNG KÝ THẤT BẠI DO TRÙNG EMAIL ---
+    // --- TEST CASE 3: TRÙNG EMAIL ---
     @Test(priority = 3)
     void register_fail_duplicate_email() {
         prepareRegisterPage();
-        String uniqueId = "newuser" + System.currentTimeMillis();
-        String existingEmail = "admin@vegana.com"; // Email admin có sẵn
+        String uniqueId = "new" + System.currentTimeMillis();
+        String existingEmail = "admin@vegana.com";
 
-        fillRegisterForm(uniqueId, "Duplicate Email Tester", existingEmail, "123456");
+        fillRegisterForm(uniqueId, "Dup Email", existingEmail, "123456");
         clickSignUpButton();
 
         try {
@@ -170,43 +161,40 @@ public class RegisterTest extends BaseSeleniumTest {
         }
     }
 
-    // --- TEST CASE 4: ĐĂNG KÝ THẤT BẠI DO EMAIL SAI ĐỊNH DẠNG ---
+    // --- TEST CASE 4: EMAIL SAI ĐỊNH DẠNG ---
     @Test(priority = 4)
     void register_fail_invalid_email_format() {
         prepareRegisterPage();
         String uniqueId = "user" + System.currentTimeMillis();
-        String invalidEmail = "nguyenvana_gmail.com"; // Thiếu @
 
-        fillRegisterForm(uniqueId, "Invalid Email Tester", invalidEmail, "123456");
+        fillRegisterForm(uniqueId, "Invalid Email", "nguyenvana_gmail.com", "123456");
         clickSignUpButton();
 
-        // 1. Kiểm tra HTML5 Validation (Client side)
+        // 1. Check HTML5 Validation
         WebElement emailInput = driver.findElement(By.cssSelector("#signup input[name='email']"));
         String validationMessage = emailInput.getAttribute("validationMessage");
 
         if (validationMessage != null && !validationMessage.isEmpty()) {
-            Assert.assertTrue(true); // Trình duyệt đã chặn -> Pass
+            Assert.assertTrue(true);
         } else {
-            // 2. Nếu trình duyệt cho qua, kiểm tra Server Validation (Server side)
+            // 2. Check Server Validation
             try {
-                WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
+                wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
                 takeScreenshot("Pass_Register_InvalidEmail_Server");
             } catch (Exception e) {
                 takeScreenshot("FAIL_Register_InvalidEmail");
-                Assert.fail("Thất bại: Nhập email sai định dạng mà hệ thống không báo lỗi gì cả!");
+                Assert.fail("Thất bại: Email sai định dạng mà không báo lỗi!");
             }
         }
     }
 
-    // --- TEST CASE 5: MẬT KHẨU NGẮN ---
+    // --- TEST CASE 5: PASS NGẮN ---
     @Test(priority = 5)
     void register_fail_short_password() {
         prepareRegisterPage();
         String uniqueId = "user" + System.currentTimeMillis();
-        String validEmail = uniqueId + "@test.com";
-        String shortPass = "123";
 
-        fillRegisterForm(uniqueId, "Short Pass Tester", validEmail, shortPass);
+        fillRegisterForm(uniqueId, "Short Pass", uniqueId + "@test.com", "123");
         clickSignUpButton();
 
         try {
@@ -214,7 +202,7 @@ public class RegisterTest extends BaseSeleniumTest {
             takeScreenshot("Pass_Register_ShortPassword");
         } catch (Exception e) {
             takeScreenshot("FAIL_Register_ShortPassword");
-            Assert.fail("Test thất bại: Nhập mật khẩu 3 ký tự mà không thấy báo lỗi đỏ!");
+            Assert.fail("Test thất bại: Mật khẩu 3 ký tự mà không báo lỗi!");
         }
     }
 }

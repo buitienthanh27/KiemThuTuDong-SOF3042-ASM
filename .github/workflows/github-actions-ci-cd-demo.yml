@@ -1,4 +1,4 @@
-name: Vegana Shop CI Pipeline
+name: Vegana Shop CI/CD Pipeline
 
 on:
   push:
@@ -7,9 +7,12 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+permissions:
+  contents: write # Cấp quyền ghi để tạo Release
+
 jobs:
-  automation-tests:
-    name: Run Spring Boot + Selenium Tests
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
 
     services:
@@ -27,11 +30,11 @@ jobs:
           --health-retries=10
 
     steps:
-      # --------------------------------------------------
+      # 1. Lấy code về
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # --------------------------------------------------
+      # 2. Cài đặt Java
       - name: Setup JDK 17
         uses: actions/setup-java@v3
         with:
@@ -39,17 +42,17 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # --------------------------------------------------
+      # 3. Cài đặt môi trường cho Selenium (Chrome)
       - name: Install Chrome
         run: |
           sudo apt-get update
           sudo apt-get install -y google-chrome-stable
 
-      # --------------------------------------------------
+      # 4. Cài MySQL Client
       - name: Install MySQL Client
         run: sudo apt-get install -y default-mysql-client
 
-      # --------------------------------------------------
+      # 5. Chờ Database khởi động xong
       - name: Wait for MySQL Ready
         run: |
           echo "⏳ Waiting for MySQL..."
@@ -57,7 +60,7 @@ jobs:
         env:
           MYSQL_PWD: 123456
 
-      # --------------------------------------------------
+      # 6. Nạp dữ liệu vào Database
       - name: Initialize Database
         run: |
           echo "Creating vegana_store database..."
@@ -72,27 +75,29 @@ jobs:
         env:
           MYSQL_PWD: 123456
 
-      # --------------------------------------------------
-      - name: Build Application (without running tests)
+      # 7. Build ứng dụng (Tạo file .jar)
+      - name: Build Application
         run: mvn -q -DskipTests clean package
 
-      # -------------------------------------------------
+      # 8. Khởi động Spring Boot (Chạy nền)
       - name: Start Spring Boot Application
         run: |
           echo "🚀 Starting Spring Boot..."
-          nohup mvn spring-boot:run > app.log 2>&1 &
+          # LƯU Ý: Tham số ddl-auto=update để KHÔNG bị mất dữ liệu vừa nạp
+          nohup mvn spring-boot:run -Dspring-boot.run.arguments="--spring.jpa.hibernate.ddl-auto=update" > app.log 2>&1 &
+          
           echo "⏳ Waiting for backend to start..."
           sleep 40
           curl -f http://localhost:9090 || exit 1
 
-      # --------------------------------------------------
+      # 9. Chạy Automation Test
       - name: Run Automation Tests (Selenium + TestNG)
         run: |
           mkdir -p test-output/reports test-output/screenshots test-output/logs
+          # Chạy test và xuất báo cáo
           mvn test -DsuiteXmlFile=src/test/resources/testng.xml
-      
 
-      # --------------------------------------------------
+      # 10. Lưu báo cáo Test (Artifact)
       - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -101,9 +106,7 @@ jobs:
           path: test-output/
           retention-days: 14
 
-      # --- ĐÃ XÓA BƯỚC UPLOAD SUREFIRE REPORTS TẠI ĐÂY ---
-
-      # --------------------------------------------------
+      # 11. Lưu Log ứng dụng (Artifact)
       - name: Upload App Logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -111,7 +114,47 @@ jobs:
           name: app-log
           path: app.log
 
-      # --------------------------------------------------
+      # 12. Dọn dẹp tiến trình
       - name: Cleanup
         if: always()
         run: pkill -f "spring-boot:run" || true
+
+  # ========================================================
+  # PHẦN CD (Continuous Delivery) - Chỉ chạy khi Test PASS
+  # ========================================================
+  deploy-release:
+    name: Release to GitHub
+    needs: build-and-test  # Chỉ chạy khi job trên thành công
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' # Chỉ chạy khi push vào branch main
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build Project (Package JAR)
+        run: mvn -DskipTests clean package
+
+      - name: Generate Release Tag
+        id: tag
+        run: echo "release_tag=v$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: Release ${{ steps.tag.outputs.release_tag }}
+          body: |
+            🚀 Tự động deploy từ CI/CD Pipeline.
+            - Phiên bản: ${{ steps.tag.outputs.release_tag }}
+            - Trạng thái Test: ✅ Passed
+          files: target/*.jar # Upload file .jar đã build
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

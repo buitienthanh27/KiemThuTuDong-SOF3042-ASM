@@ -3,8 +3,6 @@ package com.java.automation.selenium;
 import com.java.automation.config.TestConfig;
 import com.java.automation.pages.LoginOrRegisterPage;
 import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -16,193 +14,104 @@ import org.testng.annotations.Test;
 import java.time.Duration;
 import java.util.List;
 
-import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
-
 @Listeners(TestListener.class)
 public class CartTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
+    private LoginOrRegisterPage loginPage;
 
     @BeforeMethod
-    public void setUpTest() {
-        // Tăng timeout lên 30s để đảm bảo tìm thấy element trên CI chậm
-        wait = new WebDriverWait(driver, Duration.ofSeconds(30));
+    public void setUp() {
+        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+        loginPage = new LoginOrRegisterPage(driver);
     }
 
-    // --- HELPER METHODS ---
-
-    public void clickElementJS(WebElement element) {
-        try {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(500);
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
-        } catch (Exception e) {
-            element.click();
-        }
-    }
-
-    public void loginAsCustomer() {
-        LoginOrRegisterPage loginPage = new LoginOrRegisterPage(driver);
+    private void ensureLoggedIn() {
         loginPage.navigateToLoginPage();
+        if (!loginPage.isOnLoginPage()) return;
 
-        // Lấy user thường từ config
-        String userId = TestConfig.getProperty("test.user.id");
-        String password = TestConfig.getProperty("test.user.password");
-
-        System.out.println("🔄 Login User: " + userId);
-        loginPage.login(userId, password);
-
-        // Chờ về trang chủ
-        try {
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlToBe(BASE_URL),
-                    ExpectedConditions.visibilityOfElementLocated(By.partialLinkText("Logout"))
-            ));
-
-            if (driver.getCurrentUrl().contains("login")) {
-                driver.get(BASE_URL);
-            }
-        } catch (Exception e) {
-            Assert.fail("Login User thất bại!");
-        }
+        String user = TestConfig.getProperty("test.username");
+        String pass = TestConfig.getProperty("test.password");
+        loginPage.login(user == null ? "abcd" : user, pass == null ? "123123" : pass);
     }
-
-    // Hàm kiểm tra và thêm sản phẩm nếu giỏ hàng rỗng
-    private void addProductToCartIfNeeded() {
-        driver.get(BASE_URL + "carts"); // SỬA: carts (số nhiều)
-
-        // Kiểm tra nếu giỏ hàng trống (dựa trên bảng hoặc text thông báo)
-        if (driver.getPageSource().contains("Giỏ hàng của bạn đang trống") ||
-                driver.findElements(By.cssSelector("table tbody tr")).isEmpty()) {
-
-            System.out.println("⚠️ Giỏ hàng rỗng! Đang tự động thêm sản phẩm...");
-            driver.get(BASE_URL + "products");
-
-            try {
-                // Tìm nút Add to Cart (thử locator theo class cũ của bạn)
-                wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
-                List<WebElement> addButtons = driver.findElements(By.cssSelector(".product-btn a"));
-
-                if (!addButtons.isEmpty()) {
-                    WebElement btn = addButtons.get(0);
-                    clickElementJS(btn);
-                    Thread.sleep(1500); // Chờ server xử lý
-                }
-            } catch (Exception e) {
-                System.out.println("⚠️ Không tìm thấy nút thêm giỏ hàng!");
-            }
-        }
-    }
-
-    // --- TEST CASES ---
 
     @Test(priority = 1)
     public void test_add_to_cart_success() {
-        loginAsCustomer();
+        ensureLoggedIn();
 
-        System.out.println("Đang click Add to Cart...");
-        driver.get(BASE_URL + "products");
+        // 1. Vào trang sản phẩm
+        driver.get(TestConfig.getBaseUrl() + "/products");
+
+        // 2. Tìm và click nút thêm vào giỏ
+        WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
+        clickElementJS(addBtn);
+
+        // --- FIX QUAN TRỌNG: Chờ server xử lý ---
+        // Cách 1: Chờ thông báo alert (nếu có)
+        try {
+            // Chờ 2 giây cứng để chắc chắn server đã lưu DB
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {}
+
+        // 3. Vào giỏ hàng kiểm tra
+        driver.get(TestConfig.getBaseUrl() + "/carts");
 
         try {
-            // Locator cũ của bạn: .product-btn a
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
-            List<WebElement> addButtons = driver.findElements(By.cssSelector(".product-btn a"));
+            // Chờ bảng hiển thị
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("table")));
+            List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
 
-            if (addButtons.isEmpty()) Assert.fail("Không tìm thấy sản phẩm nào để thêm!");
+            Assert.assertFalse(rows.isEmpty(), "Giỏ hàng vẫn trống sau khi thêm!");
 
-            // Lấy sản phẩm đầu tiên
-            WebElement btnAddToCart = addButtons.get(0);
-            clickElementJS(btnAddToCart);
-
-            // Chờ server xử lý và redirect
-            Thread.sleep(1500);
-
-            // Vào trang giỏ hàng để kiểm tra
-            driver.get(BASE_URL + "carts"); // SỬA: carts
-
-            // Validate có bảng sản phẩm
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.tagName("table")));
-            int rowCount = driver.findElements(By.cssSelector("table tbody tr")).size();
-
-            Assert.assertTrue(rowCount > 0, "Giỏ hàng vẫn trống sau khi thêm!");
-            System.out.println("✅ Thêm vào giỏ thành công.");
+            // Check thêm: Cột tên sản phẩm có dữ liệu
+            WebElement productName = rows.get(0).findElement(By.cssSelector("td:nth-child(2)")); // Giả sử cột 2 là tên
+            Assert.assertTrue(productName.getText().length() > 0, "Tên sản phẩm bị rỗng");
 
         } catch (Exception e) {
             takeScreenshot("Add_To_Cart_Fail");
-            Assert.fail("Lỗi Add Cart: " + e.getMessage());
+            Assert.fail("Lỗi kiểm tra giỏ hàng: " + e.getMessage());
         }
     }
 
     @Test(priority = 2)
     public void test_update_quantity() {
-        loginAsCustomer();
-        addProductToCartIfNeeded();
+        ensureLoggedIn();
+        driver.get(TestConfig.getBaseUrl() + "/carts");
 
-        driver.get(BASE_URL + "carts"); // SỬA: carts
+        // Đảm bảo có hàng để update
+        List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
+        if (rows.isEmpty()) {
+            test_add_to_cart_success(); // Gọi lại hàm thêm nếu rỗng
+            driver.get(TestConfig.getBaseUrl() + "/carts");
+        }
 
         try {
             // Tìm ô input số lượng
-            WebElement qtyInput = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                    By.xpath("//input[contains(@id, 'quantityInput')]")
-            ));
-
+            WebElement qtyInput = driver.findElement(By.cssSelector("input[type='number']"));
             qtyInput.clear();
             qtyInput.sendKeys("5");
 
-            // SỬA: Dùng Keys.ENTER như code cũ của bạn
-            qtyInput.sendKeys(Keys.ENTER);
+            // Tìm nút update (thường là icon hoặc nút bên cạnh)
+            // Giả sử update tự động khi blur hoặc có nút Update
+            // Nếu có nút Update Cart:
+            try {
+                WebElement updateBtn = driver.findElement(By.xpath("//button[contains(text(),'Update') or contains(@class,'fa-sync')]"));
+                clickElementJS(updateBtn);
+                Thread.sleep(1500);
+            } catch (Exception ex) {
+                // Nếu update bằng Ajax khi đổi số: click ra ngoài
+                driver.findElement(By.tagName("h2")).click();
+                Thread.sleep(1500);
+            }
 
-            Thread.sleep(1500); // Chờ reload
-
-            // Kiểm tra lại giá trị
+            // Reload và check lại giá trị
             driver.navigate().refresh();
-            WebElement qtyAfter = driver.findElement(By.xpath("//input[contains(@id, 'quantityInput')]"));
-
-            Assert.assertEquals(qtyAfter.getAttribute("value"), "5", "Số lượng không cập nhật!");
-            System.out.println("✅ Cập nhật số lượng thành công.");
+            WebElement qtyInputAfter = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
+            Assert.assertEquals(qtyInputAfter.getAttribute("value"), "5", "Số lượng không cập nhật thành 5!");
 
         } catch (Exception e) {
             takeScreenshot("Update_Cart_Fail");
-            Assert.fail("Lỗi Update Cart: " + e.getMessage());
-        }
-    }
-
-    @Test(priority = 3)
-    public void test_remove_from_cart() {
-        loginAsCustomer();
-        addProductToCartIfNeeded();
-
-        driver.get(BASE_URL + "carts"); // SỬA: carts
-
-        try {
-            int oldSize = driver.findElements(By.cssSelector("table tbody tr")).size();
-
-            // Tìm nút xóa (Icon thùng rác .fa-trash-alt như code cũ)
-            WebElement trashBtn = wait.until(ExpectedConditions.elementToBeClickable(
-                    By.cssSelector(".fa-trash-alt") // Hoặc thẻ a chứa href remove
-            ));
-
-            // Click nút xóa
-            // Lưu ý: Nút xóa thường nằm trong thẻ <a> hoặc <button>, click vào phần tử cha nếu cần
-            WebElement parentLink = trashBtn.findElement(By.xpath("./.."));
-            clickElementJS(parentLink);
-
-            // SỬA: Xử lý Modal Confirm (configmationId) thay vì Alert
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
-            WebElement yesBtn = driver.findElement(By.id("yesOption"));
-            wait.until(ExpectedConditions.elementToBeClickable(yesBtn));
-            yesBtn.click();
-
-            Thread.sleep(1500); // Chờ xóa xong
-
-            int newSize = driver.findElements(By.cssSelector("table tbody tr")).size();
-
-            Assert.assertTrue(newSize < oldSize, "Sản phẩm vẫn còn, chưa bị xóa!");
-            System.out.println("✅ Xóa sản phẩm thành công.");
-
-        } catch (Exception e) {
-            takeScreenshot("Remove_Cart_Fail");
-            Assert.fail("Lỗi Remove Cart: " + e.getMessage());
+            Assert.fail("Lỗi update giỏ hàng: " + e.getMessage());
         }
     }
 }

@@ -22,7 +22,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 
 public class BaseSeleniumTest {
-    protected WebDriver driver;
+    protected static WebDriver driver;
     protected String BASE_URL = "http://localhost:9090/";
 
     @BeforeMethod

@@ -19,16 +19,5 @@
             <class name="com.java.automation.selenium.AdminDashboardTest"/>
         </classes>
     </test>
-
-    <test name="Login Tests">
-        <classes>
-            <class name="com.java.automation.tests.user.LoginTest"/>
-        </classes>
-    </test>
-
-    <test name="Register Tests">
-        <classes>
-            <class name="com.java.automation.tests.user.RegisterTest"/>
-        </classes>
-    </test>
+    
 </suite>

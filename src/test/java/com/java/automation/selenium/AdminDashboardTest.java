@@ -37,7 +37,7 @@ public class AdminDashboardTest extends BaseSeleniumTest {
      * Hàm đăng nhập Admin chuẩn (Sử dụng Page Object & Config)
      * Được gọi ở đầu mỗi Test Case để đảm bảo quyền truy cập.
      */
-    private void loginAsAdmin() {
+    public void loginAsAdmin() {
         LoginOrRegisterPage loginPage = new LoginOrRegisterPage(driver);
         loginPage.navigateToLoginPage();
 

@@ -39,7 +39,7 @@ public class CartTest extends BaseSeleniumTest {
         }
     }
 
-    private void loginAsCustomer() {
+    public void loginAsCustomer() {
         LoginOrRegisterPage loginPage = new LoginOrRegisterPage(driver);
         loginPage.navigateToLoginPage();
 

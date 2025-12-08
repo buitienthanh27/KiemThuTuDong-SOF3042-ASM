@@ -1,45 +1,27 @@
 package com.java.automation.config;
 
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
-/**
- * Configuration class for test properties
- */
 public class TestConfig {
-    private static Properties properties;
-    private static final String CONFIG_FILE = "src/test/resources/test.properties";
+    private static Properties properties = new Properties();
 
     static {
-        properties = new Properties();
-        try {
-            FileInputStream fileInputStream = new FileInputStream(CONFIG_FILE);
-            properties.load(fileInputStream);
-            fileInputStream.close();
-        } catch (IOException e) {
-            System.err.println("Error loading test properties: " + e.getMessage());
+        try (InputStream input = TestConfig.class.getClassLoader().getResourceAsStream("test.properties")) {
+            if (input == null) {
+                System.out.println("⚠️ Sorry, unable to find test.properties");
+            } else {
+                // Dùng UTF-8 để đọc tiếng Việt không bị lỗi font
+                properties.load(new InputStreamReader(input, StandardCharsets.UTF_8));
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
         }
     }
 
     public static String getProperty(String key) {
         return properties.getProperty(key);
     }
-
-    public static String getBaseUrl() {
-        return properties.getProperty("base.url", "http://localhost:9090");
-    }
-
-    public static String getBrowser() {
-        return properties.getProperty("browser", "chrome");
-    }
-
-    public static int getImplicitWait() {
-        return Integer.parseInt(properties.getProperty("implicit.wait", "10"));
-    }
-
-    public static int getPageLoadTimeout() {
-        return Integer.parseInt(properties.getProperty("page.load.timeout", "30"));
-    }
 }
-

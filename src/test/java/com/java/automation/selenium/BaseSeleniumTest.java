@@ -50,7 +50,7 @@ public class BaseSeleniumTest {
 
         driver = new ChromeDriver(options);
         driver.manage().deleteAllCookies();
-        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(30));
+        driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
         if (isCI == null) {
             driver.manage().window().maximize();
         }

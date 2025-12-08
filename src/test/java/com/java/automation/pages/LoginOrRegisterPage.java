@@ -1,207 +1,185 @@
 package com.java.automation.pages;
 
 import com.java.automation.config.TestConfig;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.FindBy;
-import org.openqa.selenium.support.PageFactory;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.time.Duration;
 
-/**
- * Page Object Model for Login/Register page
- */
 public class LoginOrRegisterPage {
     private WebDriver driver;
     private WebDriverWait wait;
 
-    // Login Tab
-    @FindBy(xpath = "//a[contains(@href, '#signin')]")
-    private WebElement signInTab;
+    // --- LOCATORS: LOGIN ---
+    private By signInTab = By.xpath("//ul[contains(@class, 'nav-tabs')]//a[contains(text(), 'sign in')]");
+    private By loginIdInput = By.name("customerId");
+    private By loginPassInput = By.name("password");
+    private By signInButton = By.xpath("//div[@id='signin']//button[contains(text(), 'sign in now')]");
 
-    // Login Form Elements
-    @FindBy(name = "customerId")
-    private WebElement loginCustomerIdInput;
+    // --- LOCATORS: REGISTER ---
+    private By signUpTab = By.xpath("//ul[contains(@class, 'nav-tabs')]//a[contains(text(), 'sign up')]");
+    private By regIdInput = By.xpath("//div[@id='signup']//input[@name='customerId']");
+    private By regNameInput = By.xpath("//div[@id='signup']//input[@name='fullname']");
+    private By regEmailInput = By.xpath("//div[@id='signup']//input[@name='email']");
+    private By regPassInput = By.xpath("//div[@id='signup']//input[@name='password']");
+    private By signUpButton = By.xpath("//div[@id='signup']//button[contains(text(), 'sign up now')]");
 
-    @FindBy(name = "password")
-    private WebElement loginPasswordInput;
+    // --- LOCATORS: COMMON ---
+    private By logoutButton = By.partialLinkText("Logout");
+    private By errorAlert = By.cssSelector(".alert-danger");   // Thông báo lỗi đỏ
+    private By successAlert = By.cssSelector(".alert-success"); // Thông báo thành công xanh
 
-    @FindBy(xpath = "//form[@action='/doLogin']//button[@type='submit']")
-    private WebElement signInButton;
-
-    // Register Tab
-    @FindBy(xpath = "//a[contains(@href, '#signup')]")
-    private WebElement signUpTab;
-
-    // Register Form Elements
-    @FindBy(xpath = "//form[@action='/registered']//input[@placeholder='ID Login']")
-    private WebElement registerCustomerIdInput;
-
-    @FindBy(xpath = "//form[@action='/registered']//input[@placeholder='Full Name']")
-    private WebElement registerFullnameInput;
-
-    @FindBy(xpath = "//form[@action='/registered']//input[@type='email']")
-    private WebElement registerEmailInput;
-
-    @FindBy(xpath = "//form[@action='/registered']//input[@type='password']")
-    private WebElement registerPasswordInput;
-
-    @FindBy(xpath = "//form[@action='/registered']//button[@type='submit']")
-    private WebElement signUpButton;
-
-    // Alert Messages
-    @FindBy(xpath = "//div[contains(@class, 'alert-danger')]")
-    private WebElement errorAlert;
-
-    @FindBy(xpath = "//div[contains(@class, 'alert-success')]")
-    private WebElement successAlert;
-
-    // Remember me checkbox
-    @FindBy(id = "signin-check")
-    private WebElement rememberMeCheckbox;
-
-    // Forgot password link
-    @FindBy(xpath = "//a[contains(text(), 'Forgot password')]")
-    private WebElement forgotPasswordLink;
-
+    // Constructor
     public LoginOrRegisterPage(WebDriver driver) {
         this.driver = driver;
-        // Selenium 4.x sử dụng Duration thay vì long (seconds)
-        this.wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-        PageFactory.initElements(driver, this);
+        // Giữ wait mặc định 30s cho các thao tác tương tác element (click, sendKeys...)
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(30));
     }
 
-    // Navigation methods
+    // ===========================
+    // ACTIONS: NAVIGATION
+    // ===========================
     public void navigateToLoginPage() {
-        String baseUrl = TestConfig.getBaseUrl();
-        // Đảm bảo baseUrl không kết thúc bằng "/" để tránh "//"
-        if (baseUrl.endsWith("/")) {
-            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        String baseUrl = TestConfig.getProperty("base.url");
+        if (baseUrl == null) baseUrl = "http://localhost:9090/";
+        if (!baseUrl.endsWith("/")) baseUrl += "/";
+
+        driver.get(baseUrl + "login");
+
+        // Logout nếu đang kẹt phiên cũ
+        if (!driver.getCurrentUrl().contains("login")) {
+            driver.get(baseUrl + "logout");
+            driver.get(baseUrl + "login");
         }
-        driver.get(baseUrl + "/login");
-        wait.until(ExpectedConditions.visibilityOf(signInTab));
     }
 
+    // ===========================
+    // ACTIONS: LOGIN
+    // ===========================
     public void clickSignInTab() {
-        wait.until(ExpectedConditions.elementToBeClickable(signInTab));
-        signInTab.click();
-        // Wait for sign in form to be visible
-        wait.until(ExpectedConditions.visibilityOf(loginCustomerIdInput));
+        clickElement(signInTab);
     }
 
-    public void clickSignUpTab() {
-        wait.until(ExpectedConditions.elementToBeClickable(signUpTab));
-        signUpTab.click();
-        // Wait for sign up form to be visible
-        wait.until(ExpectedConditions.visibilityOf(registerCustomerIdInput));
-    }
-
-    // Login methods
-    public void enterLoginCustomerId(String customerId) {
-        wait.until(ExpectedConditions.visibilityOf(loginCustomerIdInput));
-        loginCustomerIdInput.clear();
-        loginCustomerIdInput.sendKeys(customerId);
-    }
-
-    public void enterLoginPassword(String password) {
-        wait.until(ExpectedConditions.visibilityOf(loginPasswordInput));
-        loginPasswordInput.clear();
-        loginPasswordInput.sendKeys(password);
-    }
-
-    public void clickSignInButton() {
-        wait.until(ExpectedConditions.elementToBeClickable(signInButton));
-        signInButton.click();
-        // Wait for page to process - either redirect to home or show error
-        try {
-            // Wait a moment for page to process
-            Thread.sleep(500);
-            // Check if error alert appears (stays on login page)
-            try {
-                wait.until(ExpectedConditions.visibilityOf(errorAlert));
-            } catch (Exception e) {
-                // No error alert, might have redirected - that's OK
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    public void login(String customerId, String password) {
+    public void login(String username, String password) {
         clickSignInTab();
-        enterLoginCustomerId(customerId);
-        enterLoginPassword(password);
-        clickSignInButton();
+
+        // Wait until visible and then send keys immediately
+        WebElement idInput = wait.until(ExpectedConditions.visibilityOfElementLocated(loginIdInput));
+        idInput.clear();
+        idInput.sendKeys(username);
+
+        WebElement passInput = driver.findElement(loginPassInput);
+        passInput.clear();
+        passInput.sendKeys(password);
+
+        clickElement(signInButton);
     }
 
-    public void checkRememberMe() {
-        if (!rememberMeCheckbox.isSelected()) {
-            rememberMeCheckbox.click();
-        }
+    // ===========================
+    // ACTIONS: REGISTER
+    // ===========================
+    public void clickSignUpTab() {
+        clickElement(signUpTab);
     }
 
-    // Registration methods
-    public void enterRegisterCustomerId(String customerId) {
-        wait.until(ExpectedConditions.visibilityOf(registerCustomerIdInput));
-        registerCustomerIdInput.clear();
-        registerCustomerIdInput.sendKeys(customerId);
-    }
-
-    public void enterRegisterFullname(String fullname) {
-        wait.until(ExpectedConditions.visibilityOf(registerFullnameInput));
-        registerFullnameInput.clear();
-        registerFullnameInput.sendKeys(fullname);
-    }
-
-    public void enterRegisterEmail(String email) {
-        wait.until(ExpectedConditions.visibilityOf(registerEmailInput));
-        registerEmailInput.clear();
-        registerEmailInput.sendKeys(email);
-    }
-
-    public void enterRegisterPassword(String password) {
-        wait.until(ExpectedConditions.visibilityOf(registerPasswordInput));
-        registerPasswordInput.clear();
-        registerPasswordInput.sendKeys(password);
-    }
-
-    public void clickSignUpButton() {
-        wait.until(ExpectedConditions.elementToBeClickable(signUpButton));
-        signUpButton.click();
-        // Wait for page to process - either show success/error alert or stay on page
-        try {
-            // Wait a moment for page to process
-            Thread.sleep(500);
-            // Check if success or error alert appears
-            try {
-                wait.until(ExpectedConditions.or(
-                    ExpectedConditions.visibilityOf(successAlert),
-                    ExpectedConditions.visibilityOf(errorAlert)
-                ));
-            } catch (Exception e) {
-                // No alert, validation might have prevented submission - that's OK
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    public void register(String customerId, String fullname, String email, String password) {
+    public void register(String id, String fullname, String email, String password) {
         clickSignUpTab();
-        enterRegisterCustomerId(customerId);
+
+        enterRegisterId(id);
         enterRegisterFullname(fullname);
         enterRegisterEmail(email);
         enterRegisterPassword(password);
+
         clickSignUpButton();
     }
 
-    // Validation methods
+    public void enterRegisterId(String id) {
+        WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(regIdInput));
+        el.clear();
+        el.sendKeys(id);
+    }
+
+    public void enterRegisterFullname(String name) {
+        driver.findElement(regNameInput).sendKeys(name);
+    }
+
+    public void enterRegisterEmail(String email) {
+        driver.findElement(regEmailInput).sendKeys(email);
+    }
+
+    public void enterRegisterPassword(String pass) {
+        driver.findElement(regPassInput).sendKeys(pass);
+    }
+
+    public void clickSignUpButton() {
+        clickElement(signUpButton);
+    }
+
+    // Hàm hỗ trợ click bằng JS (Chống lỗi element click intercepted)
+    private void clickElement(By locator) {
+        try {
+            // Chỉ chờ element CLICKABLE (có thể click được) là click ngay
+            WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+        } catch (Exception e) {
+            // Fallback: Thử click thường nếu JS fail
+            driver.findElement(locator).click();
+        }
+    }
+
+    // ===========================
+    // VERIFICATIONS (KIỂM TRA)
+    // ===========================
+
+    public boolean isOnHomePage() {
+        try {
+            String baseUrl = TestConfig.getProperty("base.url");
+            if (baseUrl == null) baseUrl = "http://localhost:9090";
+
+            // Xử lý dấu '/'
+            String urlNoSlash = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+            String urlWithSlash = urlNoSlash + "/";
+
+            // Lấy URL hiện tại
+            String currentUrl = driver.getCurrentUrl();
+
+            // 1. Check NHANH: Nếu URL đúng là Home -> return true luôn
+            if (currentUrl.equals(urlNoSlash) || currentUrl.equals(urlWithSlash)) {
+                return true;
+            }
+
+            // 2. Check NHANH (Quan trọng): Nếu URL chứa "login" -> Chắc chắn không phải Home -> return false luôn
+            // Bước này giúp tránh việc code chạy xuống dưới tìm nút Logout và bị dính chờ 30s
+            if (currentUrl.contains("login")) {
+                return false;
+            }
+
+            // 3. Chỉ khi URL không rõ ràng mới tìm nút Logout
+            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(5));
+            return shortWait.until(ExpectedConditions.visibilityOfElementLocated(logoutButton)).isDisplayed();
+
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public boolean isOnLoginPage() {
+        try {
+            // Check nhanh bằng URL, tránh tìm element không cần thiết
+            return driver.getCurrentUrl().contains("login");
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public boolean isErrorAlertDisplayed() {
         try {
-            wait.until(ExpectedConditions.visibilityOf(errorAlert));
-            return errorAlert.isDisplayed();
+            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(5));
+            return shortWait.until(ExpectedConditions.visibilityOfElementLocated(errorAlert)).isDisplayed();
         } catch (Exception e) {
             return false;
         }
@@ -209,8 +187,8 @@ public class LoginOrRegisterPage {
 
     public boolean isSuccessAlertDisplayed() {
         try {
-            wait.until(ExpectedConditions.visibilityOf(successAlert));
-            return successAlert.isDisplayed();
+            WebDriverWait shortWait = new WebDriverWait(driver, Duration.ofSeconds(5));
+            return shortWait.until(ExpectedConditions.visibilityOfElementLocated(successAlert)).isDisplayed();
         } catch (Exception e) {
             return false;
         }
@@ -218,26 +196,15 @@ public class LoginOrRegisterPage {
 
     public String getErrorAlertText() {
         if (isErrorAlertDisplayed()) {
-            return errorAlert.getText();
+            return driver.findElement(errorAlert).getText();
         }
         return "";
     }
 
     public String getSuccessAlertText() {
         if (isSuccessAlertDisplayed()) {
-            return successAlert.getText();
+            return driver.findElement(successAlert).getText();
         }
         return "";
     }
-
-    public boolean isOnLoginPage() {
-        return driver.getCurrentUrl().contains("/login");
-    }
-
-    public boolean isOnHomePage() {
-        String currentUrl = driver.getCurrentUrl();
-        return currentUrl.equals(TestConfig.getBaseUrl() + "/") || 
-               currentUrl.equals(TestConfig.getBaseUrl() + "/?login_success");
-    }
 }
-

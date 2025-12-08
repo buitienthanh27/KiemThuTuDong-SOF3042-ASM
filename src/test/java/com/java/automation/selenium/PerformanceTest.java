@@ -1,5 +1,6 @@
 package com.java.automation.selenium;
 
+import com.java.automation.config.TestConfig;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
@@ -19,14 +20,30 @@ public class PerformanceTest extends BaseSeleniumTest {
     private static final long MAX_LOAD_TIME_MS = 5000;
     private static final int TIMEOUT = 15;
 
+    // Biến lưu URL chuẩn hóa để so sánh
+    private String homeUrlNoSlash;
+    private String homeUrlWithSlash;
+
     @BeforeMethod
     void setUp() {
         // QUAN TRỌNG: Không khởi tạo driver mới ở đây nữa!
         // Chúng ta dùng driver static từ BaseSeleniumTest để chỉ mở 1 trình duyệt duy nhất.
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
+
+        // Chuẩn bị sẵn 2 dạng URL để so sánh cho chính xác
+        String rawBase = BASE_URL; // Lấy từ BaseSeleniumTest
+        if (rawBase == null) rawBase = "http://localhost:9090/";
+
+        homeUrlNoSlash = rawBase.endsWith("/") ? rawBase.substring(0, rawBase.length() - 1) : rawBase;
+        homeUrlWithSlash = homeUrlNoSlash + "/";
     }
 
     // --- CÁC HÀM HỖ TRỢ ---
+
+    // Helper để lấy URL an toàn (luôn có / ở cuối để nối chuỗi)
+    private String getBaseUrlWithSlash() {
+        return homeUrlWithSlash;
+    }
 
     public void clickElementJS(WebElement element) {
         try {
@@ -39,34 +56,46 @@ public class PerformanceTest extends BaseSeleniumTest {
     }
 
     private void ensureLoggedIn() {
-        driver.get(BASE_URL + "login");
+        driver.get(getBaseUrlWithSlash() + "login");
         try {
             if (!driver.getCurrentUrl().contains("login")) return;
 
-            driver.findElement(By.name("customerId")).sendKeys("abcd");
-            driver.findElement(By.name("password")).sendKeys("123123");
+            // FIX: Lấy user/pass từ config thay vì hardcode
+            String user = TestConfig.getProperty("test.username");
+            String pass = TestConfig.getProperty("test.password");
+
+            // Fallback nếu config chưa có (để tránh lỗi null pointer)
+            if (user == null) user = "abcd";
+            if (pass == null) pass = "123123";
+
+            driver.findElement(By.name("customerId")).sendKeys(user);
+            driver.findElement(By.name("password")).sendKeys(pass);
 
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in')]"));
             clickElementJS(loginBtn);
 
-            wait.until(ExpectedConditions.urlToBe(BASE_URL));
+            // FIX: Chấp nhận cả 2 dạng URL khi login thành công
+            wait.until(ExpectedConditions.or(
+                    ExpectedConditions.urlToBe(homeUrlNoSlash),
+                    ExpectedConditions.urlToBe(homeUrlWithSlash)
+            ));
         } catch (Exception e) {
             System.out.println("Info Login: " + e.getMessage());
         }
     }
 
     private void ensureCartHasProduct() {
-        driver.get(BASE_URL + "carts");
+        driver.get(getBaseUrlWithSlash() + "carts");
         try {
             List<WebElement> rows = driver.findElements(By.cssSelector("table.table-list tbody tr"));
             if (rows.isEmpty()) {
                 System.out.println("🛒 Giỏ hàng rỗng -> Đang đi thêm hàng...");
-                driver.get(BASE_URL + "products");
+                driver.get(getBaseUrlWithSlash() + "products");
                 wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
                 clickElementJS(driver.findElements(By.cssSelector(".product-btn a")).get(0));
 
                 Thread.sleep(1500);
-                driver.get(BASE_URL + "carts");
+                driver.get(getBaseUrlWithSlash() + "carts");
             }
         } catch (Exception e) {
             System.out.println("Lỗi check giỏ hàng: " + e.getMessage());
@@ -123,20 +152,20 @@ public class PerformanceTest extends BaseSeleniumTest {
 
     @Test(priority = 1)
     void test_home_page_performance() {
-        driver.get(BASE_URL);
+        driver.get(getBaseUrlWithSlash());
         measurePerformance("Home Page");
     }
 
     @Test(priority = 2)
     void test_product_page_performance() {
-        driver.get(BASE_URL + "products");
+        driver.get(getBaseUrlWithSlash() + "products");
         wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-card")));
         measurePerformance("Product List Page");
     }
 
     @Test(priority = 3)
     void test_product_detail_performance() {
-        driver.get(BASE_URL + "products");
+        driver.get(getBaseUrlWithSlash() + "products");
 
         WebElement productLink = wait.until(ExpectedConditions.elementToBeClickable(
                 By.cssSelector(".product-name a")
@@ -152,25 +181,35 @@ public class PerformanceTest extends BaseSeleniumTest {
 
     @Test(priority = 4)
     void test_admin_flow_performance() {
-        driver.get(BASE_URL + "login");
+        driver.get(getBaseUrlWithSlash() + "login");
 
         // Login Admin
         if (driver.findElements(By.name("customerId")).size() > 0) {
-            driver.findElement(By.name("customerId")).sendKeys("admin");
-            driver.findElement(By.name("password")).sendKeys("123123");
+            // FIX: Lấy admin user/pass từ config
+            String adminUser = TestConfig.getProperty("admin.username");
+            String adminPass = TestConfig.getProperty("admin.password");
+
+            // Fallback
+            if (adminUser == null) adminUser = "admin";
+            if (adminPass == null) adminPass = "123123";
+
+            driver.findElement(By.name("customerId")).sendKeys(adminUser);
+            driver.findElement(By.name("password")).sendKeys(adminPass);
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in')]"));
             clickElementJS(loginBtn);
         }
 
         try {
+            // FIX: Chấp nhận cả 2 dạng URL khi so sánh
             wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlToBe(BASE_URL),
+                    ExpectedConditions.urlToBe(homeUrlNoSlash),
+                    ExpectedConditions.urlToBe(homeUrlWithSlash),
                     ExpectedConditions.urlContains("/admin")
             ));
         } catch (Exception e) {}
 
         if (!driver.getCurrentUrl().contains("admin/home")) {
-            driver.get(BASE_URL + "admin/home");
+            driver.get(getBaseUrlWithSlash() + "admin/home");
         }
 
         wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h2[contains(text(),'Dashboard')]")));
@@ -206,7 +245,7 @@ public class PerformanceTest extends BaseSeleniumTest {
     @Test(priority = 5)
     void test_add_to_cart_performance() {
         ensureLoggedIn();
-        driver.get(BASE_URL + "products");
+        driver.get(getBaseUrlWithSlash() + "products");
 
         System.out.println("👉 Measuring: Click Add -> Load Cart");
 
@@ -220,7 +259,7 @@ public class PerformanceTest extends BaseSeleniumTest {
         try { Thread.sleep(1500); } catch (InterruptedException e) {}
 
         // Chủ động vào trang cart để đo
-        driver.get(BASE_URL + "carts");
+        driver.get(getBaseUrlWithSlash() + "carts");
         wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("table")));
 
         measurePerformance("Action: Add To Cart (Load Cart)");
@@ -232,7 +271,7 @@ public class PerformanceTest extends BaseSeleniumTest {
         ensureCartHasProduct();
 
         if (!driver.getCurrentUrl().contains("cart")) {
-            driver.get(BASE_URL + "carts");
+            driver.get(getBaseUrlWithSlash() + "carts");
         }
 
         System.out.println("👉 Measuring: Click Checkout -> Load Checkout Page");

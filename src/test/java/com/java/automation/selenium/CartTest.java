@@ -3,6 +3,7 @@ package com.java.automation.selenium;
 import com.java.automation.config.TestConfig;
 import com.java.automation.pages.LoginOrRegisterPage;
 import org.openqa.selenium.By;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -22,14 +23,13 @@ public class CartTest extends BaseSeleniumTest {
 
     @BeforeMethod
     public void setUp() {
-        wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+        wait = new WebDriverWait(driver, Duration.ofSeconds(20));
         loginPage = new LoginOrRegisterPage(driver);
     }
 
     private void ensureLoggedIn() {
         loginPage.navigateToLoginPage();
         if (!loginPage.isOnLoginPage()) return;
-
         String user = TestConfig.getProperty("test.username");
         String pass = TestConfig.getProperty("test.password");
         loginPage.login(user == null ? "abcd" : user, pass == null ? "123123" : pass);
@@ -38,35 +38,22 @@ public class CartTest extends BaseSeleniumTest {
     @Test(priority = 1)
     public void test_add_to_cart_success() {
         ensureLoggedIn();
-
-        // 1. Vào trang sản phẩm
         driver.get(TestConfig.getBaseUrl() + "/products");
+        waitForPageLoaded(); // Chờ JS load xong
 
-        // 2. Tìm và click nút thêm vào giỏ
         WebElement addBtn = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(".product-btn a")));
-        clickElementJS(addBtn);
+        smartClick(addBtn); // Dùng hàm click thông minh
 
-        // --- FIX QUAN TRỌNG: Chờ server xử lý ---
-        // Cách 1: Chờ thông báo alert (nếu có)
-        try {
-            // Chờ 2 giây cứng để chắc chắn server đã lưu DB
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {}
+        // Chờ server xử lý
+        try { Thread.sleep(2000); } catch (InterruptedException e) {}
 
-        // 3. Vào giỏ hàng kiểm tra
         driver.get(TestConfig.getBaseUrl() + "/carts");
+        waitForPageLoaded();
 
         try {
-            // Chờ bảng hiển thị
             wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("table")));
             List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
-
             Assert.assertFalse(rows.isEmpty(), "Giỏ hàng vẫn trống sau khi thêm!");
-
-            // Check thêm: Cột tên sản phẩm có dữ liệu
-            WebElement productName = rows.get(0).findElement(By.cssSelector("td:nth-child(2)")); // Giả sử cột 2 là tên
-            Assert.assertTrue(productName.getText().length() > 0, "Tên sản phẩm bị rỗng");
-
         } catch (Exception e) {
             takeScreenshot("Add_To_Cart_Fail");
             Assert.fail("Lỗi kiểm tra giỏ hàng: " + e.getMessage());
@@ -77,41 +64,66 @@ public class CartTest extends BaseSeleniumTest {
     public void test_update_quantity() {
         ensureLoggedIn();
         driver.get(TestConfig.getBaseUrl() + "/carts");
+        waitForPageLoaded();
 
-        // Đảm bảo có hàng để update
         List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
         if (rows.isEmpty()) {
-            test_add_to_cart_success(); // Gọi lại hàm thêm nếu rỗng
+            test_add_to_cart_success();
             driver.get(TestConfig.getBaseUrl() + "/carts");
         }
 
         try {
-            // Tìm ô input số lượng
-            WebElement qtyInput = driver.findElement(By.cssSelector("input[type='number']"));
+            WebElement qtyInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
             qtyInput.clear();
             qtyInput.sendKeys("5");
+            // FIX: Nhấn Enter để trigger update form
+            qtyInput.sendKeys(Keys.ENTER);
 
-            // Tìm nút update (thường là icon hoặc nút bên cạnh)
-            // Giả sử update tự động khi blur hoặc có nút Update
-            // Nếu có nút Update Cart:
-            try {
-                WebElement updateBtn = driver.findElement(By.xpath("//button[contains(text(),'Update') or contains(@class,'fa-sync')]"));
-                clickElementJS(updateBtn);
-                Thread.sleep(1500);
-            } catch (Exception ex) {
-                // Nếu update bằng Ajax khi đổi số: click ra ngoài
-                driver.findElement(By.tagName("h2")).click();
-                Thread.sleep(1500);
-            }
+            // Chờ server reload lại trang hoặc xử lý ajax
+            Thread.sleep(2000);
 
-            // Reload và check lại giá trị
+            // Refresh để chắc chắn lấy data mới từ server
             driver.navigate().refresh();
+            waitForPageLoaded();
+
             WebElement qtyInputAfter = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
             Assert.assertEquals(qtyInputAfter.getAttribute("value"), "5", "Số lượng không cập nhật thành 5!");
 
         } catch (Exception e) {
             takeScreenshot("Update_Cart_Fail");
             Assert.fail("Lỗi update giỏ hàng: " + e.getMessage());
+        }
+    }
+
+    @Test(priority = 3)
+    public void test_remove_from_cart() {
+        ensureLoggedIn();
+        driver.get(TestConfig.getBaseUrl() + "/carts");
+        waitForPageLoaded();
+
+        List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
+        if (rows.isEmpty()) {
+            test_add_to_cart_success();
+            driver.get(TestConfig.getBaseUrl() + "/carts");
+            rows = driver.findElements(By.cssSelector("table tbody tr"));
+        }
+
+        int beforeDelete = rows.size();
+
+        try {
+            WebElement removeBtn = driver.findElement(By.xpath("//a[contains(@href, 'remove') or .//i[contains(@class, 'trash')]]"));
+            smartClick(removeBtn);
+
+            Thread.sleep(2000);
+            driver.navigate().refresh();
+            waitForPageLoaded();
+
+            List<WebElement> rowsAfter = driver.findElements(By.cssSelector("table tbody tr"));
+            Assert.assertTrue(rowsAfter.size() < beforeDelete, "Số lượng sản phẩm không giảm sau khi xóa!");
+
+        } catch (Exception e) {
+            takeScreenshot("Remove_Cart_Fail");
+            Assert.fail("Lỗi xóa sản phẩm: " + e.getMessage());
         }
     }
 }

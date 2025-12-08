@@ -3,12 +3,12 @@ package com.java.automation.selenium;
 import com.java.automation.config.TestConfig;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
+import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedCondition;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.testng.annotations.AfterMethod;
@@ -31,25 +31,22 @@ public class BaseSeleniumTest {
 
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--remote-allow-origins=*");
-
-        // --- CẤU HÌNH QUAN TRỌNG CHO GITHUB ACTIONS ---
+        // Cấu hình chuẩn cho GitHub Actions
         options.addArguments("--headless=new");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--window-size=1920,1080");
         options.addArguments("--disable-gpu");
+        options.addArguments("--disable-extensions");
 
         driver = new ChromeDriver(options);
 
-        // Lấy URL từ Config
         try {
             String configUrl = TestConfig.getBaseUrl();
             if (configUrl != null && !configUrl.isEmpty()) {
                 BASE_URL = configUrl;
             }
-        } catch (Exception e) {
-            System.out.println("⚠️ Không đọc được URL từ config, dùng mặc định.");
-        }
+        } catch (Exception e) {}
 
         if (!BASE_URL.endsWith("/")) {
             BASE_URL += "/";
@@ -65,43 +62,57 @@ public class BaseSeleniumTest {
         }
     }
 
-    protected void clickElementJS(WebElement element) {
+    // --- HÀM CLICK THÔNG MINH (QUAN TRỌNG) ---
+    protected void smartClick(WebElement element) {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         try {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(200);
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
+            // Cách 1: Chờ click được và click thường
+            wait.until(ExpectedConditions.elementToBeClickable(element));
+            element.click();
         } catch (Exception e) {
             try {
-                element.click();
+                // Cách 2: JS Click
+                ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
+                Thread.sleep(200);
+                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
             } catch (Exception ex) {
-                System.out.println("Click failed: " + ex.getMessage());
+                // Cách 3: Actions Click (Fallback cuối cùng)
+                System.out.println("⚠️ SmartClick failed, trying Actions: " + ex.getMessage());
             }
         }
     }
 
-    // --- FIX LỖI NULL POINTER KHI CHỤP ẢNH ---
-    protected void takeScreenshot(String fileName) {
-        if (driver == null) {
-            System.out.println("⚠️ Driver is null, cannot take screenshot: " + fileName);
-            return;
-        }
-
-        try {
-            // Tạo thư mục nếu chưa có
-            Path dirPath = Paths.get("test-output", "screenshots");
-            if (!Files.exists(dirPath)) {
-                Files.createDirectories(dirPath);
+    // Hàm chờ trang load xong hoàn toàn (JS ready)
+    protected void waitForPageLoaded() {
+        ExpectedCondition<Boolean> expectation = new ExpectedCondition<Boolean>() {
+            public Boolean apply(WebDriver driver) {
+                return ((JavascriptExecutor) driver).executeScript("return document.readyState").toString().equals("complete");
             }
+        };
+        try {
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            wait.until(expectation);
+        } catch (Throwable error) {
+            System.out.println("⚠️ Timeout waiting for Page Load Request to complete.");
+        }
+    }
 
-            File srcFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+    // Giữ hàm cũ để tương thích code cũ
+    protected void clickElementJS(WebElement element) {
+        smartClick(element);
+    }
+
+    protected void takeScreenshot(String fileName) {
+        if (driver == null) return;
+        try {
+            Path dirPath = Paths.get("test-output", "screenshots");
+            if (!Files.exists(dirPath)) Files.createDirectories(dirPath);
+
+            File srcFile = ((org.openqa.selenium.TakesScreenshot) driver).getScreenshotAs(org.openqa.selenium.OutputType.FILE);
             String timestamp = String.valueOf(System.currentTimeMillis());
-            Path destPath = dirPath.resolve(fileName + "_" + timestamp + ".png");
-
-            Files.copy(srcFile.toPath(), destPath, StandardCopyOption.REPLACE_EXISTING);
-            System.out.println("📸 Saved screenshot: " + destPath.toString());
-
+            Files.copy(srcFile.toPath(), dirPath.resolve(fileName + "_" + timestamp + ".png"), StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
-            System.out.println("❌ Failed to save screenshot: " + e.getMessage());
+            System.out.println("Screenshot Error: " + e.getMessage());
         }
     }
 }

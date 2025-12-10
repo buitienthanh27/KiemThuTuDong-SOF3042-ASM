@@ -59,7 +59,7 @@ public class CartTest extends BaseSeleniumTest {
             Assert.fail("Lỗi kiểm tra giỏ hàng: " + e.getMessage());
         }
     }
-
+//Comment test
 //    @Test(priority = 2)
 //    public void test_update_quantity() {
 //        ensureLoggedIn();

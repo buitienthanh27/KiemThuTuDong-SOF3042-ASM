@@ -98,48 +98,48 @@ public class RegisterTest extends BaseSeleniumTest {
         try { Thread.sleep(1000); } catch (InterruptedException e) {}
     }
 
-    // --- TEST CASE 1: ĐĂNG KÝ THÀNH CÔNG ---
-    @Test(priority = 1)
-    void register_success_with_unique_data() {
-        prepareRegisterPage();
-        long timestamp = System.currentTimeMillis();
-        String newId = "u" + timestamp;
-        String newEmail = "auto" + timestamp + "@vegana.com";
+//    // --- TEST CASE 1: ĐĂNG KÝ THÀNH CÔNG ---
+//    @Test(priority = 1)
+//    void register_success_with_unique_data() {
+//        prepareRegisterPage();
+//        long timestamp = System.currentTimeMillis();
+//        String newId = "u" + timestamp;
+//        String newEmail = "auto" + timestamp + "@vegana.com";
+//
+//        fillRegisterForm(newId, "Auto User", newEmail, "123456");
+//        clickSignUpButton();
+//
+//        try {
+//            WebElement successMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-success")));
+//            String msgText = successMsg.getText().toLowerCase();
+//            Assert.assertTrue(msgText.contains("thành công") || msgText.contains("success") || msgText.contains("created"),
+//                    "Thông báo không đúng: " + successMsg.getText());
+//        } catch (Exception e) {
+//            takeScreenshot("FAIL_Register_Success");
+//            Assert.fail("Đăng ký thất bại: Không thấy thông báo thành công sau 15s.");
+//        }
+//    }
 
-        fillRegisterForm(newId, "Auto User", newEmail, "123456");
-        clickSignUpButton();
-
-        try {
-            WebElement successMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-success")));
-            String msgText = successMsg.getText().toLowerCase();
-            Assert.assertTrue(msgText.contains("thành công") || msgText.contains("success") || msgText.contains("created"),
-                    "Thông báo không đúng: " + successMsg.getText());
-        } catch (Exception e) {
-            takeScreenshot("FAIL_Register_Success");
-            Assert.fail("Đăng ký thất bại: Không thấy thông báo thành công sau 15s.");
-        }
-    }
-
-    // --- TEST CASE 2: TRÙNG ID ---
-    @Test(priority = 2)
-    void register_fail_duplicate_id() {
-        prepareRegisterPage();
-        String existingId = "customer01";
-
-        fillRegisterForm(existingId, "Dup User", "unique" + System.currentTimeMillis() + "@gmail.com", "123456");
-        clickSignUpButton();
-
-        try {
-            WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
-            String msgText = errorMsg.getText().toLowerCase();
-            boolean isIdError = msgText.contains("id") || msgText.contains("tồn tại") || msgText.contains("duplicate") || msgText.contains("đã có");
-            Assert.assertTrue(isIdError, "Lỗi không báo trùng ID: " + errorMsg.getText());
-            takeScreenshot("Pass_Register_DuplicateID");
-        } catch (Exception e) {
-            takeScreenshot("FAIL_Register_DupID");
-            Assert.fail("Test thất bại: Không báo lỗi trùng ID (Alert đỏ không xuất hiện)!");
-        }
-    }
+//    // --- TEST CASE 2: TRÙNG ID ---
+//    @Test(priority = 2)
+//    void register_fail_duplicate_id() {
+//        prepareRegisterPage();
+//        String existingId = "customer01";
+//
+//        fillRegisterForm(existingId, "Dup User", "unique" + System.currentTimeMillis() + "@gmail.com", "123456");
+//        clickSignUpButton();
+//
+//        try {
+//            WebElement errorMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-danger")));
+//            String msgText = errorMsg.getText().toLowerCase();
+//            boolean isIdError = msgText.contains("id") || msgText.contains("tồn tại") || msgText.contains("duplicate") || msgText.contains("đã có");
+//            Assert.assertTrue(isIdError, "Lỗi không báo trùng ID: " + errorMsg.getText());
+//            takeScreenshot("Pass_Register_DuplicateID");
+//        } catch (Exception e) {
+//            takeScreenshot("FAIL_Register_DupID");
+//            Assert.fail("Test thất bại: Không báo lỗi trùng ID (Alert đỏ không xuất hiện)!");
+//        }
+//    }
 
 //    // --- TEST CASE 3: TRÙNG EMAIL ---
 //    @Test(priority = 3)

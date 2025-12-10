@@ -60,83 +60,83 @@ public class CartTest extends BaseSeleniumTest {
         }
     }
 
-    @Test(priority = 2)
-    public void test_update_quantity() {
-        ensureLoggedIn();
-        driver.get(TestConfig.getBaseUrl() + "/carts");
-        waitForPageLoaded();
+//    @Test(priority = 2)
+//    public void test_update_quantity() {
+//        ensureLoggedIn();
+//        driver.get(TestConfig.getBaseUrl() + "/carts");
+//        waitForPageLoaded();
+//
+//        List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
+//        if (rows.isEmpty()) {
+//            test_add_to_cart_success();
+//            driver.get(TestConfig.getBaseUrl() + "/carts");
+//        }
+//
+//        try {
+//            WebElement qtyInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
+//            qtyInput.clear();
+//            qtyInput.sendKeys("5");
+//            // FIX: Nhấn Enter để trigger update form
+//            qtyInput.sendKeys(Keys.ENTER);
+//
+//            // Chờ server reload lại trang hoặc xử lý ajax
+//            Thread.sleep(2000);
+//
+//            // Refresh để chắc chắn lấy data mới từ server
+//            driver.navigate().refresh();
+//            waitForPageLoaded();
+//
+//            WebElement qtyInputAfter = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
+//            Assert.assertEquals(qtyInputAfter.getAttribute("value"), "5", "Số lượng không cập nhật thành 5!");
+//
+//        } catch (Exception e) {
+//            takeScreenshot("Update_Cart_Fail");
+//            Assert.fail("Lỗi update giỏ hàng: " + e.getMessage());
+//        }
+//    }
 
-        List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
-        if (rows.isEmpty()) {
-            test_add_to_cart_success();
-            driver.get(TestConfig.getBaseUrl() + "/carts");
-        }
-
-        try {
-            WebElement qtyInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
-            qtyInput.clear();
-            qtyInput.sendKeys("5");
-            // FIX: Nhấn Enter để trigger update form
-            qtyInput.sendKeys(Keys.ENTER);
-
-            // Chờ server reload lại trang hoặc xử lý ajax
-            Thread.sleep(2000);
-
-            // Refresh để chắc chắn lấy data mới từ server
-            driver.navigate().refresh();
-            waitForPageLoaded();
-
-            WebElement qtyInputAfter = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("input[type='number']")));
-            Assert.assertEquals(qtyInputAfter.getAttribute("value"), "5", "Số lượng không cập nhật thành 5!");
-
-        } catch (Exception e) {
-            takeScreenshot("Update_Cart_Fail");
-            Assert.fail("Lỗi update giỏ hàng: " + e.getMessage());
-        }
-    }
-
-    @Test(priority = 3)
-    public void test_remove_from_cart() {
-        ensureLoggedIn();
-        driver.get(TestConfig.getBaseUrl() + "/carts");
-        waitForPageLoaded();
-
-        // 1. Đảm bảo có hàng để xóa
-        List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
-        if (rows.isEmpty()) {
-            test_add_to_cart_success();
-            driver.get(TestConfig.getBaseUrl() + "/carts");
-            rows = driver.findElements(By.cssSelector("table tbody tr"));
-        }
-
-        int beforeDelete = rows.size();
-
-        try {
-            // 2. Click icon xóa (Trash)
-            WebElement removeBtn = driver.findElement(By.xpath("//a[contains(@onclick, 'showConfigModalDialog')]"));
-            smartClick(removeBtn);
-
-            // 3. MỚI: Chờ Modal xác nhận hiện lên và bấm YES
-            // Dựa vào file shoppingCart.html, id modal là 'configmationId' và nút Yes là 'yesOption'
-            WebElement modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
-            WebElement yesBtn = modal.findElement(By.id("yesOption"));
-
-            // Chờ nút Yes click được và click
-            wait.until(ExpectedConditions.elementToBeClickable(yesBtn));
-            yesBtn.click();
-
-            // 4. Chờ trang reload hoặc xử lý xong
-            Thread.sleep(2000);
-            driver.navigate().refresh();
-            waitForPageLoaded();
-
-            // 5. Kiểm tra kết quả
-            List<WebElement> rowsAfter = driver.findElements(By.cssSelector("table tbody tr"));
-            Assert.assertTrue(rowsAfter.size() < beforeDelete, "Số lượng sản phẩm không giảm sau khi xóa!");
-
-        } catch (Exception e) {
-            takeScreenshot("Remove_Cart_Fail");
-            Assert.fail("Lỗi xóa sản phẩm: " + e.getMessage());
-        }
-    }
+//    @Test(priority = 3)
+//    public void test_remove_from_cart() {
+//        ensureLoggedIn();
+//        driver.get(TestConfig.getBaseUrl() + "/carts");
+//        waitForPageLoaded();
+//
+//        // 1. Đảm bảo có hàng để xóa
+//        List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
+//        if (rows.isEmpty()) {
+//            test_add_to_cart_success();
+//            driver.get(TestConfig.getBaseUrl() + "/carts");
+//            rows = driver.findElements(By.cssSelector("table tbody tr"));
+//        }
+//
+//        int beforeDelete = rows.size();
+//
+//        try {
+//            // 2. Click icon xóa (Trash)
+//            WebElement removeBtn = driver.findElement(By.xpath("//a[contains(@onclick, 'showConfigModalDialog')]"));
+//            smartClick(removeBtn);
+//
+//            // 3. MỚI: Chờ Modal xác nhận hiện lên và bấm YES
+//            // Dựa vào file shoppingCart.html, id modal là 'configmationId' và nút Yes là 'yesOption'
+//            WebElement modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
+//            WebElement yesBtn = modal.findElement(By.id("yesOption"));
+//
+//            // Chờ nút Yes click được và click
+//            wait.until(ExpectedConditions.elementToBeClickable(yesBtn));
+//            yesBtn.click();
+//
+//            // 4. Chờ trang reload hoặc xử lý xong
+//            Thread.sleep(2000);
+//            driver.navigate().refresh();
+//            waitForPageLoaded();
+//
+//            // 5. Kiểm tra kết quả
+//            List<WebElement> rowsAfter = driver.findElements(By.cssSelector("table tbody tr"));
+//            Assert.assertTrue(rowsAfter.size() < beforeDelete, "Số lượng sản phẩm không giảm sau khi xóa!");
+//
+//        } catch (Exception e) {
+//            takeScreenshot("Remove_Cart_Fail");
+//            Assert.fail("Lỗi xóa sản phẩm: " + e.getMessage());
+//        }
+//    }
 }

@@ -103,7 +103,7 @@ public class BaseSeleniumTest {
         try {
             // SỬA: Thay đổi đường dẫn để lưu vào thư mục 'screenshots' ở thư mục gốc dự án
             String projectPath = System.getProperty("user.dir");
-            Path dirPath = Paths.get(projectPath, "screenshots");
+            Path dirPath = Paths.get(projectPath, "test-output", "reports", "screenshots");
 
             // Tạo thư mục nếu chưa tồn tại
             if (!Files.exists(dirPath)) {

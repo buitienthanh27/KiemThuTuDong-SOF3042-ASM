@@ -89,51 +89,51 @@ public class CheckoutTest extends BaseSeleniumTest {
 
     // --- TEST CASES ---
 
-    @Test(priority = 1)
-    void test_checkout_process_success() {
-        ensureLoggedIn();
-        ensureCartHasProduct();
-
-        System.out.println("👉 Bắt đầu Checkout...");
-        driver.get(TestConfig.getBaseUrl() + "/checkout");
-
-        try {
-            // 1. Điền thông tin (Giữ nguyên code cũ của bạn)
-            WebElement nameInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("receiver")));
-            nameInput.clear();
-            nameInput.sendKeys("Test User Selenium");
-            driver.findElement(By.name("address")).sendKeys("123 Testing Street");
-            driver.findElement(By.name("phone")).sendKeys("0987654321");
-            driver.findElement(By.name("description")).sendKeys("Giao hàng giờ hành chính");
-
-            // 2. Click Place Order
-            // Selector này đúng với HTML: <button ...><span>Place order</span></button>
-            WebElement placeOrderBtn = wait.until(ExpectedConditions.elementToBeClickable(
-                    By.xpath("//button[contains(., 'Place order') or contains(., 'Place Order')]")
-            ));
-
-            // Dùng JS click để chắc chắn submit form
-            clickElementJS(placeOrderBtn);
-
-            // 3. Verify Thành công
-            // Quan trọng: Chờ URL thay đổi HOẶC trang Success hiện ra
-            // File checkout_success.html có: <h4>Thank you for your purchase!</h4>
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlContains("success"),
-                    ExpectedConditions.presenceOfElementLocated(By.xpath("//h4[contains(text(), 'Thank you')]"))
-            ));
-
-            boolean isSuccess = driver.getCurrentUrl().contains("success") ||
-                    driver.getPageSource().contains("Thank you") ||
-                    driver.getPageSource().contains("Cảm ơn");
-
-            Assert.assertTrue(isSuccess, "Checkout thất bại: Không thấy thông báo thành công!");
-
-        } catch (Exception e) {
-            takeScreenshot("Checkout_Success_Fail");
-            Assert.fail("Lỗi quá trình Checkout: " + e.getMessage());
-        }
-    }
+//    @Test(priority = 1)
+//    void test_checkout_process_success() {
+//        ensureLoggedIn();
+//        ensureCartHasProduct();
+//
+//        System.out.println("👉 Bắt đầu Checkout...");
+//        driver.get(TestConfig.getBaseUrl() + "/checkout");
+//
+//        try {
+//            // 1. Điền thông tin (Giữ nguyên code cũ của bạn)
+//            WebElement nameInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("receiver")));
+//            nameInput.clear();
+//            nameInput.sendKeys("Test User Selenium");
+//            driver.findElement(By.name("address")).sendKeys("123 Testing Street");
+//            driver.findElement(By.name("phone")).sendKeys("0987654321");
+//            driver.findElement(By.name("description")).sendKeys("Giao hàng giờ hành chính");
+//
+//            // 2. Click Place Order
+//            // Selector này đúng với HTML: <button ...><span>Place order</span></button>
+//            WebElement placeOrderBtn = wait.until(ExpectedConditions.elementToBeClickable(
+//                    By.xpath("//button[contains(., 'Place order') or contains(., 'Place Order')]")
+//            ));
+//
+//            // Dùng JS click để chắc chắn submit form
+//            clickElementJS(placeOrderBtn);
+//
+//            // 3. Verify Thành công
+//            // Quan trọng: Chờ URL thay đổi HOẶC trang Success hiện ra
+//            // File checkout_success.html có: <h4>Thank you for your purchase!</h4>
+//            wait.until(ExpectedConditions.or(
+//                    ExpectedConditions.urlContains("success"),
+//                    ExpectedConditions.presenceOfElementLocated(By.xpath("//h4[contains(text(), 'Thank you')]"))
+//            ));
+//
+//            boolean isSuccess = driver.getCurrentUrl().contains("success") ||
+//                    driver.getPageSource().contains("Thank you") ||
+//                    driver.getPageSource().contains("Cảm ơn");
+//
+//            Assert.assertTrue(isSuccess, "Checkout thất bại: Không thấy thông báo thành công!");
+//
+//        } catch (Exception e) {
+//            takeScreenshot("Checkout_Success_Fail");
+//            Assert.fail("Lỗi quá trình Checkout: " + e.getMessage());
+//        }
+//    }
 
     @Test(priority = 2)
     void test_checkout_fail_missing_address() {

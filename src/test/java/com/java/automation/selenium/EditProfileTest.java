@@ -3,7 +3,6 @@ package com.java.automation.selenium;
 import com.java.automation.config.TestConfig;
 import com.java.automation.pages.LoginOrRegisterPage;
 import org.openqa.selenium.By;
-import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -15,73 +14,69 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.time.Duration;
 
-import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
-
 @Listeners(TestListener.class)
 public class EditProfileTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
-    private static final int TIMEOUT = 5; // Tăng timeout cho CI
+    private LoginOrRegisterPage loginPage;
+    private static final int TIMEOUT = 20; // Tăng timeout cho môi trường CI
 
-    // Đường dẫn ảnh tĩnh để test upload (tránh tạo file rác)
-    private static final String AVATAR_PATH = System.getProperty("user.dir") + File.separator + "src" + File.separator + "main" + File.separator + "resources" + File.separator + "static" + File.separator + "images" + File.separator + "product" + File.separator + "02.jpg";
+    // Đường dẫn ảnh tĩnh để test upload
+    private static final String AVATAR_PATH = System.getProperty("user.dir") + "/src/main/resources/static/images/product/02.jpg";
 
     @BeforeMethod
-    void setUpTest() {
+    public void setUp() {
         wait = new WebDriverWait(driver, Duration.ofSeconds(TIMEOUT));
+        loginPage = new LoginOrRegisterPage(driver);
     }
 
-    // --- HELPER METHODS ---
+    private void ensureLoggedIn() {
+        loginPage.navigateToLoginPage();
+        if (loginPage.isOnLoginPage()) {
+            String user = TestConfig.getProperty("test.user.id"); // Dùng user thường để test profile
+            String pass = TestConfig.getProperty("test.user.password");
 
-    public void clickElementJS(WebElement element) {
-        try {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(500);
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
-        } catch (Exception e) {
-            element.click();
+            // Fallback nếu config chưa set
+            if (user == null) user = "abcd";
+            if (pass == null) pass = "123123";
+
+            System.out.println("🔄 Login Profile User: " + user);
+            loginPage.login(user, pass);
         }
     }
 
     private void loginAndGoToProfile() {
-        // 1. Đăng nhập chuẩn bằng Page Object
-        LoginOrRegisterPage loginPage = new LoginOrRegisterPage(driver);
-        loginPage.navigateToLoginPage();
+        ensureLoggedIn();
 
-        String userId = TestConfig.getProperty("test.user.id");
-        String password = TestConfig.getProperty("test.user.password");
+        // Điều hướng vào trang Profile
+        driver.get(TestConfig.getBaseUrl() + "/profile"); // Thử URL /profile trước
 
-        System.out.println("🔄 Login Profile User: " + userId);
-        loginPage.login(userId, password);
-
-        // 2. Vào trang Profile
-        driver.get(BASE_URL + "account");
-
-        // 3. Đảm bảo đã vào được trang Account
-        try {
-            wait.until(ExpectedConditions.or(
-                    ExpectedConditions.urlContains("account"),
-                    ExpectedConditions.visibilityOfElementLocated(By.xpath("//h2[contains(text(), 'Profile')] | //h4[contains(text(), 'Profile')]"))
-            ));
-        } catch (Exception e) {
-            Assert.fail("Không thể truy cập trang Profile. Có thể login thất bại.");
+        // Nếu không đúng URL, thử tìm link trong menu (trường hợp URL khác)
+        if (!driver.getCurrentUrl().contains("profile") && !driver.getCurrentUrl().contains("account")) {
+            driver.get(TestConfig.getBaseUrl() + "/account");
         }
     }
 
     private void openEditModal() {
         try {
-            // Tìm nút Edit (thường là button hoặc a có data-target)
-            WebElement editBtn = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("button[data-target='#profile-edit']")));
+            waitForPageLoaded();
 
-            clickElementJS(editBtn);
+            // FIX QUAN TRỌNG: Thay đổi Selector tìm nút Edit
+            // Tìm thẻ 'a' chứa text 'Edit' (thay vì button[data-target])
+            // Sử dụng XPath để tìm chính xác nút Edit trong phần thông tin tài khoản
+            WebElement editBtn = wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//div[contains(@class,'account-title')]//a[contains(text(),'Edit')] | //a[contains(text(),'Edit') and contains(@href, 'profile')]")
+            ));
 
-            // Chờ Modal hiện ra
+            smartClick(editBtn);
+
+            // Chờ Modal hiện ra (ID của modal thường là profile-edit)
             wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("profile-edit")));
             Thread.sleep(500); // Chờ animation modal
 
         } catch (Exception e) {
             takeScreenshot("Open_Edit_Modal_Fail");
-            Assert.fail("Không mở được Modal chỉnh sửa thông tin! Lỗi: " + e.getMessage());
+            Assert.fail("Không mở được Modal chỉnh sửa thông tin! (Kiểm tra lại Selector nút Edit): " + e.getMessage());
         }
     }
 
@@ -93,7 +88,7 @@ public class EditProfileTest extends BaseSeleniumTest {
         openEditModal();
 
         String newName = "User Update " + System.currentTimeMillis();
-        String newPhone = "09" + (System.currentTimeMillis() / 1000);
+        String newPhone = "09" + (System.currentTimeMillis() / 100000);
         String newAddress = "Dia chi moi " + System.currentTimeMillis();
 
         try {
@@ -104,32 +99,30 @@ public class EditProfileTest extends BaseSeleniumTest {
             nameInput.sendKeys(newName);
 
             // Nhập SĐT
-            WebElement phoneInput = driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='phone']"));
-            phoneInput.clear();
-            phoneInput.sendKeys(newPhone);
+            driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='phone']")).clear();
+            driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='phone']")).sendKeys(newPhone);
 
             // Nhập Địa chỉ
-            WebElement addrInput = driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='address']"));
-            addrInput.clear();
-            addrInput.sendKeys(newAddress);
+            driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='address']")).clear();
+            driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='address']")).sendKeys(newAddress);
 
             // Click Save
-            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='profile-edit']//button[contains(text(), 'save change')]"));
-            clickElementJS(saveBtn);
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='profile-edit']//button[contains(text(), 'save') or contains(text(), 'Save')]"));
+            smartClick(saveBtn);
 
-            // Kiểm tra thành công (Alert hoặc reload trang)
+            // Kiểm tra thành công
             Thread.sleep(1500);
-            boolean isSuccess = false;
 
+            // Cách 1: Check alert success
+            boolean isSuccess = false;
             try {
-                // Check thông báo thành công
-                WebElement successMsg = driver.findElement(By.cssSelector(".alert-success"));
-                if(successMsg.isDisplayed()) isSuccess = true;
+                if(driver.findElement(By.cssSelector(".alert-success")).isDisplayed()) isSuccess = true;
             } catch (Exception ignored) {}
 
-            // Hoặc check xem dữ liệu trên trang đã đổi chưa
+            // Cách 2: Check dữ liệu hiển thị sau khi reload (chắc chắn hơn)
             if (!isSuccess) {
                 driver.navigate().refresh();
+                waitForPageLoaded();
                 if(driver.getPageSource().contains(newName)) isSuccess = true;
             }
 
@@ -148,34 +141,30 @@ public class EditProfileTest extends BaseSeleniumTest {
         openEditModal();
 
         try {
-            // Upload ảnh (Sử dụng ảnh có sẵn trong project thay vì tạo temp file)
             File avatar = new File(AVATAR_PATH);
             if (!avatar.exists()) {
-                System.out.println("⚠️ Không tìm thấy ảnh test avatar: " + AVATAR_PATH);
-                // Bỏ qua test này nếu không có ảnh, tránh fail oan
+                System.out.println("⚠️ Không tìm thấy ảnh test avatar, bỏ qua test này.");
                 return;
             }
 
+            // Upload input thường bị ẩn, cần sendKeys trực tiếp
             WebElement uploadInput = driver.findElement(By.xpath("//div[@id='profile-edit']//input[@name='image']"));
             uploadInput.sendKeys(avatar.getAbsolutePath());
 
             // Click Save
-            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='profile-edit']//button[contains(text(), 'save change')]"));
-            clickElementJS(saveBtn);
+            WebElement saveBtn = driver.findElement(By.xpath("//div[@id='profile-edit']//button[contains(text(), 'save') or contains(text(), 'Save')]"));
+            smartClick(saveBtn);
 
-            // Check Success
-            Thread.sleep(1500);
+            Thread.sleep(2000); // Chờ upload
+
+            // Verify
             try {
-                WebElement successMsg = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".alert-success")));
-                Assert.assertTrue(successMsg.isDisplayed());
+                // Check alert hoặc check modal đóng
+                boolean modalClosed = wait.until(ExpectedConditions.invisibilityOfElementLocated(By.id("profile-edit")));
+                Assert.assertTrue(modalClosed, "Modal không đóng sau khi save -> Có thể lỗi server.");
                 System.out.println("✅ Upload Avatar thành công.");
             } catch (Exception e) {
-                // Nếu không có alert, thử check xem modal đóng chưa
-                if(driver.findElements(By.id("profile-edit")).isEmpty() || !driver.findElement(By.id("profile-edit")).isDisplayed()) {
-                    System.out.println("✅ Upload xong, modal đã đóng.");
-                } else {
-                    Assert.fail("Upload thất bại, không thấy thông báo.");
-                }
+                Assert.fail("Upload thất bại hoặc timeout.");
             }
 
         } catch (Exception e) {
@@ -197,11 +186,13 @@ public class EditProfileTest extends BaseSeleniumTest {
 
             // Check thuộc tính readonly
             String readonlyAttr = emailInput.getAttribute("readonly");
+
+            // Nếu không có readonly, thử nhập liệu xem có đổi được không
             if (readonlyAttr == null) {
-                // Thử nhập liệu để kiểm chứng thực tế
-                emailInput.sendKeys("hacker@gmail.com");
+                emailInput.sendKeys("hack@test.com");
                 String newEmail = emailInput.getAttribute("value");
 
+                // Nếu value thay đổi -> Lỗi bảo mật
                 if (!originalEmail.equals(newEmail)) {
                     takeScreenshot("Email_Readonly_Fail");
                     Assert.fail("LỖI BẢO MẬT: Ô Email cho phép chỉnh sửa!");

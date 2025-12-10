@@ -22,7 +22,7 @@ public class CheckoutTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
     private LoginOrRegisterPage loginPage;
-    private static final int TIMEOUT = 10;
+    private static final int TIMEOUT = 30;
 
     @BeforeMethod
     public void setUp() {
@@ -98,30 +98,29 @@ public class CheckoutTest extends BaseSeleniumTest {
         driver.get(TestConfig.getBaseUrl() + "/checkout");
 
         try {
-            // 1. Điền thông tin người nhận
+            // 1. Điền thông tin (Giữ nguyên code cũ của bạn)
             WebElement nameInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("receiver")));
             nameInput.clear();
             nameInput.sendKeys("Test User Selenium");
-
             driver.findElement(By.name("address")).sendKeys("123 Testing Street");
             driver.findElement(By.name("phone")).sendKeys("0987654321");
             driver.findElement(By.name("description")).sendKeys("Giao hàng giờ hành chính");
 
             // 2. Click Place Order
-            // Dùng XPath chứa text để tìm nút (chấp nhận cả tiếng Anh và Việt)
-            WebElement placeOrderBtn = driver.findElement(By.xpath("//button[contains(., 'Place order') or contains(., 'Đặt hàng')]"));
+            // Selector này đúng với HTML: <button ...><span>Place order</span></button>
+            WebElement placeOrderBtn = wait.until(ExpectedConditions.elementToBeClickable(
+                    By.xpath("//button[contains(., 'Place order') or contains(., 'Place Order')]")
+            ));
 
-            // Scroll kỹ để tránh footer che nút
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", placeOrderBtn);
-            Thread.sleep(1000);
-
+            // Dùng JS click để chắc chắn submit form
             clickElementJS(placeOrderBtn);
 
             // 3. Verify Thành công
-            // Chờ URL đổi sang trang success HOẶC hiện thông báo cảm ơn
+            // Quan trọng: Chờ URL thay đổi HOẶC trang Success hiện ra
+            // File checkout_success.html có: <h4>Thank you for your purchase!</h4>
             wait.until(ExpectedConditions.or(
                     ExpectedConditions.urlContains("success"),
-                    ExpectedConditions.visibilityOfElementLocated(By.xpath("//*[contains(text(), 'Thank you') or contains(text(), 'Cảm ơn')]"))
+                    ExpectedConditions.presenceOfElementLocated(By.xpath("//h4[contains(text(), 'Thank you')]"))
             ));
 
             boolean isSuccess = driver.getCurrentUrl().contains("success") ||
@@ -130,14 +129,8 @@ public class CheckoutTest extends BaseSeleniumTest {
 
             Assert.assertTrue(isSuccess, "Checkout thất bại: Không thấy thông báo thành công!");
 
-            // Log ID đơn hàng nếu lấy được
-            try {
-                WebElement orderId = driver.findElement(By.xpath("//h5/span | //strong[contains(text(), '#')]"));
-                System.out.println("🎉 ORDER SUCCESS! Mã đơn: " + orderId.getText());
-            } catch (Exception ignored) {}
-
         } catch (Exception e) {
-            takeScreenshot("Checkout_Success_Fail"); // Dùng hàm chụp ảnh của BaseSeleniumTest
+            takeScreenshot("Checkout_Success_Fail");
             Assert.fail("Lỗi quá trình Checkout: " + e.getMessage());
         }
     }

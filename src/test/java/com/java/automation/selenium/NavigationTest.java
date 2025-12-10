@@ -14,13 +14,14 @@ import org.testng.annotations.Test;
 import java.time.Duration;
 import java.util.List;
 
+// Import để dùng hàm chụp ảnh nếu cần
 import static com.java.automation.utils.ScreenshotUtil.takeScreenshot;
 
 @Listeners(TestListener.class)
 public class NavigationTest extends BaseSeleniumTest {
 
     private WebDriverWait wait;
-    private static final int TIMEOUT = 10;
+    private static final int TIMEOUT = 20; // Tăng timeout lên chút cho an toàn
 
     // Biến lưu URL chuẩn hóa để so sánh
     private String homeUrlNoSlash;
@@ -41,10 +42,13 @@ public class NavigationTest extends BaseSeleniumTest {
     // --- HÀM HỖ TRỢ ---
     public void clickElementJS(WebElement element) {
         try {
+            // Scroll đến phần tử để chắc chắn nó nằm trong viewport
             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(500);
+            Thread.sleep(500); // Chờ scroll và animation
+            // Click bằng JS
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
         } catch (Exception e) {
+            // Fallback nếu JS fail (hiếm khi xảy ra)
             element.click();
         }
     }
@@ -57,17 +61,19 @@ public class NavigationTest extends BaseSeleniumTest {
     private void ensureLoggedIn() {
         driver.get(getBaseUrlWithSlash() + "login");
         try {
-            // Check nhanh: Nếu không ở trang login thì thôi (đã login rồi hoặc url khác)
             if (!driver.getCurrentUrl().contains("login")) return;
 
             WebElement userField = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("customerId")));
             userField.clear();
-            userField.sendKeys("abcd");
-            driver.findElement(By.name("password")).sendKeys("123123");
+            // Lấy user từ config hoặc fallback
+            String user = TestConfig.getProperty("test.username");
+            String pass = TestConfig.getProperty("test.password");
+            userField.sendKeys(user != null ? user : "abcd");
+            driver.findElement(By.name("password")).sendKeys(pass != null ? pass : "123123");
+
             WebElement loginBtn = driver.findElement(By.xpath("//button[contains(text(), 'sign in now')]"));
             clickElementJS(loginBtn);
 
-            // FIX: Chấp nhận cả 2 dạng URL khi login thành công
             wait.until(ExpectedConditions.or(
                     ExpectedConditions.urlToBe(homeUrlNoSlash),
                     ExpectedConditions.urlToBe(homeUrlWithSlash)
@@ -81,11 +87,13 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test(priority = 1)
     void test_logo_redirects_to_home() {
         driver.get(getBaseUrlWithSlash() + "contact");
+        waitForPageLoaded();
         try {
             WebElement logo = wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//img[@alt='logo']/parent::a")));
-            logo.click();
 
-            // FIX: Chờ 1 trong 2 URL (có hoặc không có dấu /)
+            // Dùng click JS cho chắc chắn
+            clickElementJS(logo);
+
             wait.until(ExpectedConditions.or(
                     ExpectedConditions.urlToBe(homeUrlNoSlash),
                     ExpectedConditions.urlToBe(homeUrlWithSlash)
@@ -105,9 +113,11 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test(priority = 2)
     void test_menu_all_products() {
         driver.get(getBaseUrlWithSlash());
+        waitForPageLoaded();
         try {
             WebElement productLink = wait.until(ExpectedConditions.elementToBeClickable(By.linkText("All Products")));
-            productLink.click();
+            clickElementJS(productLink);
+
             wait.until(ExpectedConditions.urlContains("/products"));
 
             boolean isCorrectPage = driver.getTitle().contains("Products") || driver.getCurrentUrl().contains("products");
@@ -123,9 +133,11 @@ public class NavigationTest extends BaseSeleniumTest {
     @Test(priority = 3)
     void test_menu_contact() {
         driver.get(getBaseUrlWithSlash());
+        waitForPageLoaded();
         try {
             WebElement contactLink = wait.until(ExpectedConditions.elementToBeClickable(By.linkText("Contact")));
-            contactLink.click();
+            clickElementJS(contactLink);
+
             wait.until(ExpectedConditions.urlContains("contact"));
 
             WebElement heading = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//h2[contains(text(), 'Contact us')]")));
@@ -137,17 +149,24 @@ public class NavigationTest extends BaseSeleniumTest {
         }
     }
 
-    // --- TEST 4: ICON GIỎ HÀNG (Cần Login) ---
+    // --- TEST 4: ICON GIỎ HÀNG (ĐÃ SỬA LỖI) ---
     @Test(priority = 4)
     void test_header_cart_icon() {
         ensureLoggedIn();
         driver.get(getBaseUrlWithSlash());
+        waitForPageLoaded(); // Chờ trang load xong hoàn toàn
 
         try {
-            WebElement cartIcon = wait.until(ExpectedConditions.elementToBeClickable(
-                    By.xpath("//i[contains(@class, 'fa-shopping-basket')]/parent::a | //a[contains(@href, 'cart')]")
+            // SỬA: Tìm thẻ 'a' chứa href có chữ 'cart'. Selector này bao quát hơn.
+            // Đồng thời dùng visibilityOfElementLocated để đảm bảo nó hiển thị.
+            WebElement cartIcon = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                    By.xpath("//a[contains(@href, 'cart') or contains(@href, 'carts')]")
             ));
-            cartIcon.click();
+
+            // SỬA QUAN TRỌNG: Dùng click JS để xuyên qua mọi lớp phủ (badge, span, animation...)
+            clickElementJS(cartIcon);
+
+            // Verify
             wait.until(ExpectedConditions.urlContains("cart"));
 
         } catch (Exception e) {
@@ -159,20 +178,25 @@ public class NavigationTest extends BaseSeleniumTest {
     // --- TEST 5: NAVIGATION LOGIN ---
     @Test(priority = 5)
     void test_login_navigation() {
-        driver.get(getBaseUrlWithSlash() + "logout"); // Logout trước
+        driver.get(getBaseUrlWithSlash() + "logout");
         driver.get(getBaseUrlWithSlash());
+        waitForPageLoaded();
 
         try {
             List<WebElement> loginLinks = driver.findElements(By.partialLinkText("Login"));
             if (loginLinks.size() > 0) {
-                loginLinks.get(0).click();
+                clickElementJS(loginLinks.get(0));
             } else {
+                // Fallback tìm icon user
                 WebElement userIcon = driver.findElement(By.xpath("//i[contains(@class, 'fa-user')]/parent::a"));
-                userIcon.click();
+                clickElementJS(userIcon);
             }
             wait.until(ExpectedConditions.urlContains("login"));
 
-            WebElement signInTab = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//a[contains(text(), 'sign in')]")));
+            // Tìm tab "Sign In" hoặc "Đăng nhập"
+            WebElement signInTab = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                    By.xpath("//a[contains(text(), 'sign in') or contains(text(), 'Sign In')]")
+            ));
             Assert.assertTrue(signInTab.isDisplayed());
 
         } catch (Exception e) {

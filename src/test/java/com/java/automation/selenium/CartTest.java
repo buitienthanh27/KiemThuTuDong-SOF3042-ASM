@@ -101,6 +101,7 @@ public class CartTest extends BaseSeleniumTest {
         driver.get(TestConfig.getBaseUrl() + "/carts");
         waitForPageLoaded();
 
+        // 1. Đảm bảo có hàng để xóa
         List<WebElement> rows = driver.findElements(By.cssSelector("table tbody tr"));
         if (rows.isEmpty()) {
             test_add_to_cart_success();
@@ -111,13 +112,25 @@ public class CartTest extends BaseSeleniumTest {
         int beforeDelete = rows.size();
 
         try {
-            WebElement removeBtn = driver.findElement(By.xpath("//a[contains(@href, 'remove') or .//i[contains(@class, 'trash')]]"));
+            // 2. Click icon xóa (Trash)
+            WebElement removeBtn = driver.findElement(By.xpath("//a[contains(@onclick, 'showConfigModalDialog')]"));
             smartClick(removeBtn);
 
+            // 3. MỚI: Chờ Modal xác nhận hiện lên và bấm YES
+            // Dựa vào file shoppingCart.html, id modal là 'configmationId' và nút Yes là 'yesOption'
+            WebElement modal = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("configmationId")));
+            WebElement yesBtn = modal.findElement(By.id("yesOption"));
+
+            // Chờ nút Yes click được và click
+            wait.until(ExpectedConditions.elementToBeClickable(yesBtn));
+            yesBtn.click();
+
+            // 4. Chờ trang reload hoặc xử lý xong
             Thread.sleep(2000);
             driver.navigate().refresh();
             waitForPageLoaded();
 
+            // 5. Kiểm tra kết quả
             List<WebElement> rowsAfter = driver.findElements(By.cssSelector("table tbody tr"));
             Assert.assertTrue(rowsAfter.size() < beforeDelete, "Số lượng sản phẩm không giảm sau khi xóa!");
 

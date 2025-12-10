@@ -3,7 +3,8 @@ package com.java.automation.selenium;
 import com.java.automation.config.TestConfig;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.Keys;
+import org.openqa.selenium.OutputType;
+import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -22,6 +23,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 
 public class BaseSeleniumTest {
+    // Để static theo code của bạn (lưu ý không chạy parallel được)
     protected static WebDriver driver;
     protected String BASE_URL = "http://localhost:9090/";
 
@@ -62,57 +64,74 @@ public class BaseSeleniumTest {
         }
     }
 
-    // --- HÀM CLICK THÔNG MINH (QUAN TRỌNG) ---
+    // --- HÀM CLICK THÔNG MINH ---
     protected void smartClick(WebElement element) {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         try {
-            // Cách 1: Chờ click được và click thường
             wait.until(ExpectedConditions.elementToBeClickable(element));
             element.click();
         } catch (Exception e) {
             try {
-                // Cách 2: JS Click
                 ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
                 Thread.sleep(200);
                 ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
             } catch (Exception ex) {
-                // Cách 3: Actions Click (Fallback cuối cùng)
-                System.out.println("⚠️ SmartClick failed, trying Actions: " + ex.getMessage());
+                System.out.println("⚠️ SmartClick failed: " + ex.getMessage());
             }
         }
     }
 
-    // Hàm chờ trang load xong hoàn toàn (JS ready)
     protected void waitForPageLoaded() {
-        ExpectedCondition<Boolean> expectation = new ExpectedCondition<Boolean>() {
-            public Boolean apply(WebDriver driver) {
-                return ((JavascriptExecutor) driver).executeScript("return document.readyState").toString().equals("complete");
-            }
-        };
+        ExpectedCondition<Boolean> expectation = driver -> ((JavascriptExecutor) driver).executeScript("return document.readyState").toString().equals("complete");
         try {
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
             wait.until(expectation);
         } catch (Throwable error) {
-            System.out.println("⚠️ Timeout waiting for Page Load Request to complete.");
+            System.out.println("⚠️ Timeout waiting for Page Load.");
         }
     }
 
-    // Giữ hàm cũ để tương thích code cũ
     protected void clickElementJS(WebElement element) {
         smartClick(element);
     }
 
-    protected void takeScreenshot(String fileName) {
-        if (driver == null) return;
-        try {
-            Path dirPath = Paths.get("test-output", "screenshots");
-            if (!Files.exists(dirPath)) Files.createDirectories(dirPath);
-
-            File srcFile = ((org.openqa.selenium.TakesScreenshot) driver).getScreenshotAs(org.openqa.selenium.OutputType.FILE);
-            String timestamp = String.valueOf(System.currentTimeMillis());
-            Files.copy(srcFile.toPath(), dirPath.resolve(fileName + "_" + timestamp + ".png"), StandardCopyOption.REPLACE_EXISTING);
-        } catch (Exception e) {
-            System.out.println("Screenshot Error: " + e.getMessage());
+    public String takeScreenshot(String fileName) {
+        if (driver == null) {
+            System.out.println("⚠️ Driver is null, cannot take screenshot.");
+            return null;
         }
+        try {
+            // SỬA: Thay đổi đường dẫn để lưu vào thư mục 'screenshots' ở thư mục gốc dự án
+            String projectPath = System.getProperty("user.dir");
+            Path dirPath = Paths.get(projectPath, "screenshots");
+
+            // Tạo thư mục nếu chưa tồn tại
+            if (!Files.exists(dirPath)) {
+                Files.createDirectories(dirPath);
+            }
+
+            File srcFile = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            String timestamp = String.valueOf(System.currentTimeMillis());
+
+            // Đặt tên file an toàn hơn (tránh ký tự đặc biệt)
+            String cleanFileName = fileName.replaceAll("[^a-zA-Z0-9.-]", "_");
+            String fullFileName = "FAIL_" + cleanFileName + "_" + timestamp + ".png";
+
+            Path destPath = dirPath.resolve(fullFileName);
+
+            Files.copy(srcFile.toPath(), destPath, StandardCopyOption.REPLACE_EXISTING);
+
+            System.out.println("📸 Đã lưu ảnh lỗi tại: " + destPath.toString());
+
+            return destPath.toAbsolutePath().toString();
+        } catch (Exception e) {
+            System.out.println("❌ Lỗi khi chụp màn hình: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // Getter cho Driver (Hỗ trợ Listener nếu cần truy cập trực tiếp)
+    public WebDriver getDriver() {
+        return driver;
     }
 }

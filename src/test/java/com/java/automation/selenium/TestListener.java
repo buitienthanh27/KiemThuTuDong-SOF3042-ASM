@@ -1,79 +1,79 @@
 package com.java.automation.selenium;
 
-import com.java.automation.utils.ExtentReportManager; // Import file quản lý báo cáo
-import com.aventstack.extentreports.Status; // Import trạng thái báo cáo
-import io.qameta.allure.Allure;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
+import com.java.automation.utils.ExtentReportManager;
+import com.aventstack.extentreports.Status;
+import org.openqa.selenium.WebDriver;
 import org.testng.ITestContext;
 import org.testng.ITestListener;
 import org.testng.ITestResult;
 
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-
 public class TestListener implements ITestListener {
 
-    // 1. Khi bắt đầu 1 Test Case -> Tạo dòng mới trong báo cáo
     @Override
     public void onTestStart(ITestResult result) {
         ExtentReportManager.createTest(result.getName(), result.getMethod().getDescription());
+        System.out.println("--- BẮT ĐẦU TEST: " + result.getName() + " ---");
     }
 
-    // 2. Khi Test PASS -> Ghi log màu xanh
     @Override
     public void onTestSuccess(ITestResult result) {
-        ExtentReportManager.getTest().log(Status.PASS, "Test Passed: " + result.getName());
+        if (ExtentReportManager.getTest() != null) {
+            ExtentReportManager.getTest().log(Status.PASS, "Test Passed: " + result.getName());
+        }
+        System.out.println("✅ TEST PASSED: " + result.getName());
     }
 
-    // 3. Khi Test FAIL -> Ghi log màu đỏ + Chụp ảnh
     @Override
     public void onTestFailure(ITestResult result) {
-        System.out.println("❌ Test Failed: " + result.getName());
-        ExtentReportManager.getTest().log(Status.FAIL, "Test Failed: " + result.getName());
-        ExtentReportManager.getTest().log(Status.FAIL, result.getThrowable()); // Ghi lỗi chi tiết vào báo cáo
+        System.out.println("❌ TEST FAILED: " + result.getName());
 
-        if (BaseSeleniumTest.driver != null) {
-            try {
-                // --- Phần chụp ảnh cũ của bạn (Giữ nguyên) ---
-                File src = ((TakesScreenshot) BaseSeleniumTest.driver).getScreenshotAs(OutputType.FILE);
-                String methodName = result.getName();
-                String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
-                String fileName = "test-output/screenshots/FAIL_" + methodName + "_" + time + ".png";
-                Path dest = Paths.get(fileName);
-                Files.createDirectories(dest.getParent());
-                Files.copy(src.toPath(), dest);
+        try {
+            Object currentClass = result.getInstance();
+            WebDriver driver = ((BaseSeleniumTest) currentClass).getDriver();
 
-                // Đính ảnh vào Allure (Giữ nguyên)
-                byte[] content = ((TakesScreenshot) BaseSeleniumTest.driver).getScreenshotAs(OutputType.BYTES);
-                Allure.addAttachment(methodName + "_Failure", new ByteArrayInputStream(content));
+            if (driver != null) {
+                System.out.println("📸 Đang gọi hàm chụp ảnh cho test: " + result.getName());
+                String screenshotPath = ((BaseSeleniumTest) currentClass).takeScreenshot(result.getName());
 
-                // --- THÊM MỚI: Đính ảnh vào ExtentReport ---
-                ExtentReportManager.getTest().addScreenCaptureFromPath(dest.toAbsolutePath().toString());
-
-            } catch (Exception e) {
-                e.printStackTrace();
+                // Attach vào Allure Report (nếu có dùng)
+                if (ExtentReportManager.getTest() != null && screenshotPath != null) {
+                    ExtentReportManager.getTest().addScreenCaptureFromPath(screenshotPath);
+                }
+            } else {
+                System.out.println("⚠️ Driver bị NULL, không thể chụp ảnh.");
             }
+        } catch (Exception e) {
+            System.out.println("⚠️ Lỗi Listener khi chụp ảnh: " + e.getMessage());
         }
     }
 
-    @Override public void onTestSkipped(ITestResult result) {
-        ExtentReportManager.getTest().log(Status.SKIP, "Test Skipped: " + result.getName());
+    @Override
+    public void onTestSkipped(ITestResult result) {
+        System.out.println("⚠️ TEST SKIPPED: " + result.getName());
+        if (ExtentReportManager.getTest() != null) {
+            ExtentReportManager.getTest().log(Status.SKIP, "Test Skipped: " + result.getName());
+            if (result.getThrowable() != null) {
+                ExtentReportManager.getTest().log(Status.SKIP, result.getThrowable());
+            }
+        }
+
+        // Thử chụp ảnh ngay cả khi Skipped (thường do lỗi setup)
+        try {
+            Object currentClass = result.getInstance();
+            if (currentClass instanceof BaseSeleniumTest) {
+                ((BaseSeleniumTest) currentClass).takeScreenshot(result.getName() + "_Skipped");
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override public void onTestFailedButWithinSuccessPercentage(ITestResult result) {}
 
     @Override public void onStart(ITestContext context) {}
 
-    // 4. QUAN TRỌNG NHẤT: Lưu file báo cáo khi chạy xong tất cả
     @Override
     public void onFinish(ITestContext context) {
         ExtentReportManager.flush();
         System.out.println("📝 Extent Report generated in test-output/reports/");
+        System.out.println("--- KẾT THÚC BỘ TEST ---");
     }
 }
